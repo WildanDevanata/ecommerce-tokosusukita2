@@ -17,6 +17,9 @@ export async function GET() {
       name: cat.name,
       slug: cat.slug,
       icon: cat.icon,
+      description: cat.description, // Tambahkan baris ini
+      color: cat.color || 'text-blue-600',
+      bgColor: cat.bgColor || 'bg-blue-50',
       // Mengambil hasil count dari Prisma
       productCount: cat._count.products,
     }));

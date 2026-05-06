@@ -190,6 +190,7 @@ model BankAccount {
   type          AccountType @default(BANK)
   color         String?
   isActive      Boolean     @default(true)
+  
 }
 
 model Notification {

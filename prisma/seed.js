@@ -186,7 +186,7 @@ async function main() {
   }
 
   // 3. Seed Users & Addresses
-  const usersData = [
+const usersData = [
     {
       id: 'user1', name: 'Admin Toko', email: 'admin@tokosusukita.com', password: 'admin123',
       phone: '081234567890', role: 'ADMIN', createdAt: new Date('2024-01-01'), isActive: true,
@@ -197,14 +197,50 @@ async function main() {
       phone: '082345678901', role: 'CUSTOMER', createdAt: new Date('2024-02-15'), isActive: true,
       address: { id: 'addr2', label: 'Rumah', recipientName: 'Budi Santoso', phone: '082345678901', address: 'Jl. Melati No. 25 RT 03 RW 04', city: 'Jakarta Timur', province: 'DKI Jakarta', postalCode: '13210', isDefault: true },
     },
+    {
+      id: 'user3', name: 'Siti Rahayu', email: 'siti@email.com', password: 'customer123',
+      phone: '083456789012', role: 'CUSTOMER', createdAt: new Date('2024-03-20'), isActive: true,
+      address: { id: 'addr3', label: 'Rumah', recipientName: 'Siti Rahayu', phone: '083456789012', address: 'Jl. Mawar Indah No. 12', city: 'Depok', province: 'Jawa Barat', postalCode: '16415', isDefault: true },
+    },
+    {
+      id: 'user4', name: 'Ahmad Fauzi', email: 'ahmad@email.com', password: 'customer123',
+      phone: '084567890123', role: 'CUSTOMER', createdAt: new Date('2024-04-10'), isActive: true,
+      address: { id: 'addr4', label: 'Rumah', recipientName: 'Ahmad Fauzi', phone: '084567890123', address: 'Jl. Kenanga No. 7 Blok C', city: 'Bekasi', province: 'Jawa Barat', postalCode: '17111', isDefault: true },
+    },
+    {
+      id: 'user5', name: 'Dewi Lestari', email: 'dewi@email.com', password: 'customer123',
+      phone: '085678901234', role: 'CUSTOMER', createdAt: new Date('2024-05-05'), isActive: true,
+      address: { id: 'addr5', label: 'Rumah', recipientName: 'Dewi Lestari', phone: '085678901234', address: 'Perumahan Griya Indah B-12', city: 'Tangerang', province: 'Banten', postalCode: '15117', isDefault: true },
+    },
+    {
+      id: 'user6', name: 'Rini Wulandari', email: 'rini@email.com', password: 'customer123',
+      phone: '086789012345', role: 'CUSTOMER', createdAt: new Date('2024-05-18'), isActive: false,
+    },
+    {
+      id: 'user7', name: 'Eko Prasetyo', email: 'eko@email.com', password: 'customer123',
+      phone: '087890123456', role: 'CUSTOMER', createdAt: new Date('2024-06-01'), isActive: true,
+    },
+    {
+      id: 'user8', name: 'Nurul Hidayah', email: 'nurul@email.com', password: 'customer123',
+      phone: '088901234567', role: 'CUSTOMER', createdAt: new Date('2024-06-15'), isActive: true,
+    },
   ];
 
   for (const u of usersData) {
     const { address, ...userData } = u;
-    const createdUser = await prisma.user.create({ data: userData });
+    
+    // Gunakan upsert agar tidak error jika data ID sudah ada
+    const createdUser = await prisma.user.upsert({
+      where: { id: userData.id },
+      update: userData,
+      create: userData,
+    });
+
     if (address) {
-      await prisma.address.create({
-        data: { ...address, userId: createdUser.id }
+      await prisma.address.upsert({
+        where: { id: address.id },
+        update: { ...address, userId: createdUser.id },
+        create: { ...address, userId: createdUser.id }
       });
     }
   }
@@ -212,7 +248,9 @@ async function main() {
   // 4. Seed Bank Accounts
   const banksData = [
     { id: 'bank1', bankName: 'Bank BCA', accountNumber: '1234567890', accountName: 'Toko Susu Kita 2', type: 'BANK', color: 'bg-blue-600', isActive: true },
-    { id: 'bank4', bankName: 'GoPay', accountNumber: '081234567890', accountName: 'Toko Susu Kita 2', type: 'EWALLET', color: 'bg-green-500', isActive: true },
+    { id: 'bank2', bankName: 'GoPay', accountNumber: '081234567890', accountName: 'Toko Susu Kita 2', type: 'EWALLET', color: 'bg-green-500', isActive: true },
+    { id: 'bank3', bankName: 'OVO', accountNumber: '081234567890', accountName: 'Toko Susu Kita 2', type: 'EWALLET', color: 'bg-purple-500', isActive: true },
+    { id: 'bank4', bankName: 'DANA', accountNumber: '081234567890', accountName: 'Toko Susu Kita 2', type: 'EWALLET', color: 'bg-cyan-500', isActive: true },
   ];
 
   for (const bank of banksData) {
@@ -220,11 +258,18 @@ async function main() {
   }
 
   // 5. Seed Orders (Contoh satu order)
-  const orderData = {
-    id: 'ord1', orderNumber: 'ORD-2024-001', userId: 'user2',
-    totalAmount: 695000, shippingCost: 25000,
-    status: 'DELIVERED', paymentStatus: 'PAID', paymentMethod: 'TRANSFER',
-    trackingNumber: 'JNE2024001234', courier: 'JNE',
+ const ordersData = [
+  {
+    id: 'ord1',
+    orderNumber: 'ORD-2024-001',
+    userId: 'user2',
+    totalAmount: 695000,
+    shippingCost: 25000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    paymentMethod: 'TRANSFER',
+    trackingNumber: 'JNE2024001234',
+    courier: 'JNE',
     shippingRecipient: 'Budi Santoso',
     shippingPhone: '082345678901',
     shippingAddress: 'Jl. Melati No. 25',
@@ -233,17 +278,169 @@ async function main() {
     shippingPostalCode: '13210',
     createdAt: new Date('2024-04-01T08:00:00'),
     updatedAt: new Date('2024-04-05T14:00:00'),
-  };
+    items: { // GANTI DARI orderItems KE items
+      create: [
+        { id: 'item1', productId: 'prod2', quantity: 2, price: 285000 },
+        { id: 'item2', productId: 'prod13', quantity: 1, price: 95000 }
+      ]
+    }
+  },
+  {
+    id: 'ord2',
+    orderNumber: 'ORD-2024-002',
+    userId: 'user3',
+    totalAmount: 280000,
+    shippingCost: 20000,
+    status: 'SHIPPED',
+    paymentStatus: 'PAID',
+    paymentMethod: 'MIDTRANS',
+    trackingNumber: 'SICEPAT2024005678',
+    courier: 'SiCepat',
+    shippingRecipient: 'Siti Rahayu',
+    shippingPhone: '083456789012',
+    shippingAddress: 'Jl. Mawar Indah No. 12',
+    shippingCity: 'Depok',
+    shippingProvince: 'Jawa Barat',
+    shippingPostalCode: '16415',
+    createdAt: new Date('2024-04-10T10:30:00'),
+    updatedAt: new Date('2024-04-13T11:00:00'),
+    items: { // GANTI DARI orderItems KE items
+      create: [
+        { id: 'item3', productId: 'prod1', quantity: 3, price: 85000 }
+      ]
+    }
+  },
+{
+    id: 'ord3',
+    orderNumber: 'ORD-2024-003',
+    userId: 'user4',
+    totalAmount: 206000,
+    shippingCost: 15000,
+    status: 'PROCESSING',
+    paymentStatus: 'PAID',
+    paymentMethod: 'EWALLET',
+    shippingRecipient: 'Ahmad Fauzi',
+    shippingPhone: '084567890123',
+    shippingAddress: 'Jl. Kenanga No. 7',
+    shippingCity: 'Bekasi',
+    shippingProvince: 'Jawa Barat',
+    shippingPostalCode: '17111',
+    createdAt: new Date('2024-04-15T14:00:00'),
+    updatedAt: new Date('2024-04-16T09:00:00'),
+    items: {
+      create: [
+        { id: 'item4', productId: 'prod11', quantity: 1, price: 125000 },
+        { id: 'item5', productId: 'prod12', quantity: 2, price: 28000 }
+      ]
+    }
+  },
+  {
+    id: 'ord4',
+    orderNumber: 'ORD-2024-004',
+    userId: 'user5',
+    totalAmount: 164500,
+    shippingCost: 20000,
+    status: 'CONFIRMED',
+    paymentStatus: 'PENDING', // Diubah dari WAITING_VERIFICATION agar sesuai enum standar
+    paymentMethod: 'TRANSFER',
+    paymentProofUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400',
+    shippingRecipient: 'Dewi Lestari',
+    shippingPhone: '085678901234',
+    shippingAddress: 'Griya Indah B-12',
+    shippingCity: 'Tangerang',
+    shippingProvince: 'Banten',
+    shippingPostalCode: '15117',
+    createdAt: new Date('2024-04-18T16:30:00'),
+    updatedAt: new Date('2024-04-18T20:00:00'),
+    items: {
+      create: [
+        { id: 'item6', productId: 'prod7', quantity: 5, price: 18500 },
+        { id: 'item7', productId: 'prod8', quantity: 2, price: 26000 }
+      ]
+    }
+  },
+  {
+    id: 'ord5',
+    orderNumber: 'ORD-2024-005',
+    userId: 'user7',
+    totalAmount: 480000,
+    shippingCost: 25000,
+    status: 'PENDING',
+    paymentStatus: 'PENDING',
+    paymentMethod: 'TRANSFER',
+    shippingRecipient: 'Eko Prasetyo',
+    shippingPhone: '087890123456',
+    shippingAddress: 'Jl. Anggrek No. 3',
+    shippingCity: 'Surabaya',
+    shippingProvince: 'Jawa Timur',
+    shippingPostalCode: '60232',
+    createdAt: new Date('2024-04-20T09:15:00'),
+    updatedAt: new Date('2024-04-20T09:15:00'),
+    items: {
+      create: [
+        { id: 'item8', productId: 'prod3', quantity: 2, price: 195000 },
+        { id: 'item9', productId: 'prod16', quantity: 1, price: 65000 }
+      ]
+    }
+  },
+  {
+    id: 'ord6',
+    orderNumber: 'ORD-2024-006',
+    userId: 'user8',
+    totalAmount: 490000,
+    shippingCost: 25000,
+    status: 'CANCELLED',
+    paymentStatus: 'REFUNDED',
+    paymentMethod: 'MIDTRANS',
+    shippingRecipient: 'Nurul Hidayah',
+    shippingPhone: '088901234567',
+    shippingAddress: 'Jl. Cendana No. 8',
+    shippingCity: 'Bandung',
+    shippingProvince: 'Jawa Barat',
+    shippingPostalCode: '40114',
+    createdAt: new Date('2024-04-05T11:00:00'),
+    updatedAt: new Date('2024-04-06T10:00:00'),
+    items: {
+      create: [
+        { id: 'item10', productId: 'prod5', quantity: 1, price: 320000 },
+        { id: 'item11', productId: 'prod15', quantity: 1, price: 145000 }
+      ]
+    }
+  },
+  {
+    id: 'ord7',
+    orderNumber: 'ORD-2024-007',
+    userId: 'user2',
+    totalAmount: 515000,
+    shippingCost: 30000,
+    status: 'PENDING',
+    paymentStatus: 'PENDING',
+    shippingRecipient: 'Budi Santoso',
+    shippingPhone: '082345678901',
+    shippingAddress: 'Jl. Melati No. 25',
+    shippingCity: 'Jakarta Timur',
+    shippingProvince: 'DKI Jakarta',
+    shippingPostalCode: '13210',
+    createdAt: new Date('2024-04-22T13:00:00'),
+    updatedAt: new Date('2024-04-22T13:00:00'),
+    items: {
+      create: [
+        { id: 'item12', productId: 'prod18', quantity: 1, price: 485000 }
+      ]
+    }
+  }
+];
 
-  const createdOrder = await prisma.order.create({ data: orderData });
-
-  // 6. Seed Order Items
-  await prisma.orderItem.createMany({
-    data: [
-      { orderId: createdOrder.id, productId: 'prod2', quantity: 2, price: 285000 },
-      { orderId: createdOrder.id, productId: 'prod1', quantity: 1, price: 95000 },
-    ]
-  });
+for (const order of ordersData) {
+    await prisma.order.create({ data: order });
+  }
+  // // 6. Seed Order Items
+  // await prisma.orderItem.createMany({
+  //   data: [
+  //     { orderId: createdOrder.id, productId: 'prod2', quantity: 2, price: 285000 },
+  //     { orderId: createdOrder.id, productId: 'prod1', quantity: 1, price: 95000 },
+  //   ]
+  // });
 
   console.log('Seeding selesai!');
 }

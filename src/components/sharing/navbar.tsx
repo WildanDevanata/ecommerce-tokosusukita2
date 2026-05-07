@@ -79,7 +79,7 @@ export default function Navbar() {
             </div>
 
             {isLoggedIn ? (
-              <Link href="/profile" className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-all">
+              <Link href="/admin/dashboard" className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-all">
                 <User className="w-5 h-5" />
               </Link>
             ) : (

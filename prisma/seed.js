@@ -341,7 +341,7 @@ const usersData = [
     totalAmount: 164500,
     shippingCost: 20000,
     status: 'CONFIRMED',
-    paymentStatus: 'PENDING', // Diubah dari WAITING_VERIFICATION agar sesuai enum standar
+    paymentStatus: 'WAITING_VERIFICATION', // Diubah dari WAITING_VERIFICATION agar sesuai enum standar
     paymentMethod: 'TRANSFER',
     paymentProofUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400',
     shippingRecipient: 'Dewi Lestari',

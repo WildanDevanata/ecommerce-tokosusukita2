@@ -1,49 +1,69 @@
-import { prisma } from "@/lib/prisma";
-import { formatRupiah, formatDate, getOrderStatusLabel, getOrderStatusColor, getPaymentStatusLabel, getPaymentStatusColor } from "@/lib/helpers";
-import OrdersClient from "@/components/admin/OrdersClient";
+import { prisma } from '@/lib/prisma';
+import OrdersClient from '@/components/admin/OrdersClient';
 
 export default async function Page() {
   const orders = await prisma.order.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: {
+      createdAt: 'desc',
+    },
+
     include: {
       user: true,
+
       items: {
         include: {
-          product: true
-        }
-      }
-    }
+          product: true,
+        },
+      },
+    },
   });
 
-  // Mapping biar sesuai UI figma kamu
-  const mappedOrders = orders.map(o => ({
-    id: o.id,
-    orderNumber: o.orderNumber,
-    userName: o.user?.name || "User",
-    userEmail: o.user?.email || "-",
-    totalAmount: o.totalAmount,
-    status: o.status,
-    paymentStatus: o.paymentStatus,
-    createdAt: o.createdAt,
-    trackingNumber: o.trackingNumber,
-    courier: o.courier,
+const mappedOrders = orders.map((o) => ({
+  id: o.id,
+  orderNumber: o.orderNumber,
 
-    items: o.items.map(i => ({
-      id: i.id,
-      productName: i.product.name,
-      price: i.price,
-      quantity: i.quantity,
-      productEmoji: "📦",
-      productBgColor: "bg-gray-100"
-    })),
+  userName: o.user?.name || 'User',
+  userEmail: o.user?.email || '-',
 
-    shippingAddress: {
-      recipientName: o.user?.name || "-",
-      phone: o.user?.phone || "-",
-      address: o.shippingAddress || "-",
-      city: o.city || "-"
-    }
-  }));
+  totalAmount: o.totalAmount,
+
+  status: o.status,
+  paymentStatus: o.paymentStatus,
+
+  paymentMethod: o.paymentMethod,
+
+  trackingNumber: o.trackingNumber,
+  courier: o.courier,
+
+  createdAt: o.createdAt,
+
+  items: o.items.map((i) => ({
+    id: i.id,
+    productName: i.product.name,
+    quantity: i.quantity,
+    price: i.price,
+    productEmoji: '📦',
+    productBgColor: 'bg-gray-100',
+  })),
+
+  shippingAddress: {
+    recipientName:
+      o.shippingRecipient,
+
+    phone: o.shippingPhone,
+
+    address:
+      o.shippingAddress,
+
+    city: o.shippingCity,
+
+    province:
+      o.shippingProvince,
+
+    postalCode:
+      o.shippingPostalCode,
+  },
+}));
 
   return <OrdersClient orders={mappedOrders} />;
 }

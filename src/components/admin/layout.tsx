@@ -206,7 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <p className="text-xs font-bold text-gray-800">{currentUser?.name}</p>
                       <p className="text-[10px] text-gray-400 truncate">{currentUser?.email}</p>
                     </div>
-                    <Link href="/dashboard/admin/profile" onClick={() => setUserDropOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                    <Link href="/admin/profile" onClick={() => setUserDropOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                       <User className="w-4 h-4" /> Profil Admin
                     </Link>
                     <div className="h-px bg-gray-50 my-1" />

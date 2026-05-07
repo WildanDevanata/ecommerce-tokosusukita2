@@ -1,37 +1,88 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  context: any
+) {
   try {
-    const { id } = params;
-    const body = await req.json();
+    // WAJIB await params di Next.js terbaru
+    const params =
+      await context.params;
 
-    // Hapus id dari body agar tidak konflik dengan where: { id }
-    const { id: _, ...updateData } = body;
+    const id = params.id;
 
-    const updated = await prisma.bankAccount.update({
-      where: { id: id },
-      data: updateData,
-    });
+    const body =
+      await req.json();
 
-    return NextResponse.json(updated);
+    // Hapus field yg tidak boleh diupdate
+    const {
+      id: _id,
+      createdAt,
+      updatedAt,
+      ...updateData
+    } = body;
+
+    const updated =
+      await prisma.bankAccount.update(
+        {
+          where: { id },
+
+          data: updateData,
+        }
+      );
+
+    return NextResponse.json(
+      updated
+    );
   } catch (error: any) {
-    console.error("PATCH_ERROR:", error);
-    return NextResponse.json({ message: "Gagal Update", error: error.message }, { status: 500 });
+    console.error(
+      'PATCH_ERROR:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        message:
+          error.message,
+      },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  req: Request,
+  context: any
+) {
   try {
-    const { id } = params;
+    // WAJIB await params
+    const params =
+      await context.params;
 
-    await prisma.bankAccount.delete({
-      where: { id: id },
+    const id = params.id;
+
+    await prisma.bankAccount.delete(
+      {
+        where: { id },
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
     });
-
-    return NextResponse.json({ message: "Berhasil dihapus" });
   } catch (error: any) {
-    console.error("DELETE_ERROR:", error);
-    return NextResponse.json({ message: "Gagal Hapus", error: error.message }, { status: 500 });
+    console.error(
+      'DELETE_ERROR:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        message:
+          error.message,
+      },
+      { status: 500 }
+    );
   }
 }

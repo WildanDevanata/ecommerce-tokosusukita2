@@ -39,9 +39,13 @@ export default async function AdminDashboardPage() {
   ]);
 
   // 📊 Statistik
-  const totalRevenue = orders
-    .filter((o) => o.status === "PAID" || o.status === "COMPLETED")
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+const totalRevenue = orders
+  .filter(
+    (o) =>
+      o.paymentStatus === "PAID" &&
+      o.status !== "CANCELLED"
+  )
+  .reduce((sum, o) => sum + o.totalAmount, 0);
 
   const thisMonthOrders = orders.filter(
     (o) =>

@@ -64,7 +64,7 @@ export default function LoginPage() {
         );
       } else {
         router.push(
-          '/admin/dash/profile'
+          '/customer/profile'
         );
       }
     }

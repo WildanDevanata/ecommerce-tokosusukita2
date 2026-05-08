@@ -21,9 +21,11 @@ export async function GET() {
 
     const enrichedOrders = orders.map(
       (order) => ({
-        id: order.id,
+       id: order.id,
 
-        orderNumber: order.orderNumber,
+userId: order.userId,
+
+orderNumber: order.orderNumber,
 
         userName:
           order.user?.name ||

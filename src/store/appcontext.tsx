@@ -22,15 +22,25 @@ export interface BankAccount {
 
 export interface Order {
   id: string;
+
   orderNumber: string;
+
+  userId?: string;
+
   userName: string;
+
   totalAmount: number;
+
+  shippingCost: number;
+
   paymentStatus:
     | 'PENDING'
+    | 'WAITING_VERIFICATION'
     | 'PAID'
-    | 'FAILED';
+    | 'FAILED'
+    | 'REFUNDED';
 
-  paymentMethod: string;
+  paymentMethod?: string;
 
   status:
     | 'PENDING'
@@ -41,14 +51,35 @@ export interface Order {
     | 'CANCELLED';
 
   createdAt: string;
+
   updatedAt: string;
 
   paymentProofUrl?: string;
+
+  trackingNumber?: string;
+
+  courier?: string;
+
   shippingRecipient?: string;
 
+  shippingPhone?: string;
+
+  shippingAddress?: {
+    recipientName: string;
+    phone: string;
+    address: string;
+    city: string;
+    province?: string;
+    postalCode?: string;
+  };
+
   items?: {
+    id: string;
     productName: string;
     quantity: number;
+    price: number;
+    productEmoji?: string;
+    productBgColor?: string;
   }[];
 }
 
@@ -144,13 +175,32 @@ interface AppContextType {
     id: string
   ) => void;
 
-  addToCart: (item: Product) => void;
+  addToCart: (
+    item: Product
+  ) => void;
 
   removeFromCart: (
     id: string
   ) => void;
 
-  login: (user: User) => void;
+  uploadPaymentProof: (
+  orderId: string,
+  proofUrl: string,
+  paymentMethod: string
+) => Promise<void>;
+
+cancelOrder: (
+  orderId: string
+) => void;
+
+  updateCartQty: (
+    id: string,
+    qty: number
+  ) => void;
+
+  login: (
+    user: User
+  ) => void;
 
   logout: () => void;
 
@@ -177,6 +227,7 @@ export const AppProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
+
   // ================= STATES =================
 
   const [categories, setCategories] =
@@ -228,7 +279,6 @@ export const AppProvider = ({
         setBankAccounts(data);
       } catch (error) {
         console.error(error);
-
         setBankAccounts([]);
       } finally {
         setLoading(false);
@@ -274,7 +324,6 @@ export const AppProvider = ({
         setOrders(data);
       } catch (error) {
         console.error(error);
-
         setOrders([]);
       }
     };
@@ -297,7 +346,6 @@ export const AppProvider = ({
         setUsers(data);
       } catch (error) {
         console.error(error);
-
         setUsers([]);
       }
     };
@@ -439,6 +487,67 @@ export const AppProvider = ({
     );
   };
 
+  const uploadPaymentProof =
+  async (
+    orderId: string,
+    proofUrl: string,
+    paymentMethod: string
+  ) => {
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === orderId
+          ? {
+              ...order,
+
+              paymentProofUrl:
+                proofUrl,
+
+              paymentMethod,
+
+              paymentStatus:
+                'WAITING_VERIFICATION',
+            }
+          : order
+      )
+    );
+  };
+
+const cancelOrder = (
+  orderId: string
+) => {
+  setOrders((prev) =>
+    prev.map((order) =>
+      order.id === orderId
+        ? {
+            ...order,
+            status: 'CANCELLED',
+          }
+        : order
+    )
+  );
+};
+  // ✅ PINDAHKAN KE DALAM AppProvider
+  const updateCartQty = (
+    id: string,
+    qty: number
+  ) => {
+    if (qty <= 0) {
+      removeFromCart(id);
+      return;
+    }
+
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              quantity: qty,
+            }
+          : item
+      )
+    );
+  };
+
   const login = (user: User) => {
     setCurrentUser(user);
 
@@ -483,7 +592,7 @@ export const AppProvider = ({
       value={{
         products,
         categories:
-          categoriesWithCount,
+        categoriesWithCount,
         cart,
         currentUser,
         isLoggedIn,
@@ -491,6 +600,8 @@ export const AppProvider = ({
         users,
         bankAccounts,
         loading,
+        uploadPaymentProof,
+        cancelOrder,  
 
         setProducts,
         setCategories,
@@ -508,6 +619,7 @@ export const AppProvider = ({
 
         addToCart,
         removeFromCart,
+        updateCartQty,
 
         login,
         logout,

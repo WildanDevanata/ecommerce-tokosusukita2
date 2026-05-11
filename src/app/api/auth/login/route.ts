@@ -7,11 +7,15 @@ export async function POST(req: Request) {
 
     const { email, password } = body;
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+const user = await prisma.user.findUnique({
+  where: {
+    email,
+  },
+
+  include: {
+    addresses: true,
+  },
+});
 
     // cek user
     if (!user) {
@@ -39,12 +43,17 @@ export async function POST(req: Request) {
 
     // jangan kirim password ke frontend
     const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-    };
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+
+  addresses: user.addresses,
+
+  createdAt:
+    user.createdAt.toISOString(),
+};
 
     return NextResponse.json({
       success: true,

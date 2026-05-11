@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 import {
   MapPin,
@@ -98,10 +99,15 @@ export default function CheckoutPage() {
 
   // ================= REDIRECT =================
 
+useEffect(() => {
   if (cart.length === 0) {
     router.push('/customer/cart');
-    return null;
   }
+}, [cart, router]);
+
+if (cart.length === 0) {
+  return null;
+}
 
   // ================= HANDLERS =================
 

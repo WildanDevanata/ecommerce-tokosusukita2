@@ -344,7 +344,7 @@ export default function CartPage() {
                 <button
                   onClick={() =>
                     router.push(
-                      '/dashboard/customer/checkout'
+                      '/customer/checkout'
                     )
                   }
                   className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-bold text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700"

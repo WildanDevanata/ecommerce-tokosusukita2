@@ -1,7 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  useState,
+  useEffect,
+} from 'react';
+
 import Link from 'next/link';
+
 import {
   User,
   Mail,
@@ -13,12 +18,15 @@ import {
   Trash2,
   Edit3,
   Camera,
- Check,
+  Check,
 } from 'lucide-react';
 
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
-import { useApp } from '@/store/appcontext';
+
+import {
+  useApp,
+} from '@/store/appcontext';
 
 // ================= TYPES =================
 
@@ -35,7 +43,12 @@ type Address = {
 };
 
 export default function ProfilePage() {
-  const { currentUser } = useApp();
+  const {
+    currentUser,
+    updateProfile,
+    addAddress,
+    deleteAddress,
+  } = useApp();
 
   const [activeTab, setActiveTab] = useState<
     'profile' | 'address' | 'security'
@@ -48,12 +61,12 @@ export default function ProfilePage() {
     useState(false);
 
   const [form, setForm] = useState({
-    name: currentUser?.name || '',
-    phone: currentUser?.phone || '',
+    name: '',
+    phone: '',
   });
 
-  const [addresses, setAddresses] =
-    useState<Address[]>([]);
+  const addresses =
+    currentUser?.addresses || [];
 
   const [showAddAddr, setShowAddAddr] =
     useState(false);
@@ -64,12 +77,30 @@ export default function ProfilePage() {
       isDefault: false,
     });
 
+  // ================= SYNC USER =================
+
+  useEffect(() => {
+    if (currentUser) {
+      setForm({
+        name:
+          currentUser.name || '',
+        phone:
+          currentUser.phone || '',
+      });
+    }
+  }, [currentUser]);
+
   // ================= HANDLERS =================
 
-  const handleSaveProfile = () => {
-    // nanti sambungkan ke API / context update user
+  const handleSaveProfile =
+  async () => {
+    await updateProfile({
+      name: form.name,
+      phone: form.phone,
+    });
 
     setEditMode(false);
+
     setSaved(true);
 
     setTimeout(() => {
@@ -86,30 +117,37 @@ export default function ProfilePage() {
 
     const newAddr: Address = {
       id: `addr-${Date.now()}`,
+
       label:
         addrForm.label || 'Rumah',
+
       recipientName:
         addrForm.recipientName ||
         currentUser?.name ||
         '',
+
       phone:
         addrForm.phone ||
         currentUser?.phone ||
         '',
-      address: addrForm.address || '',
-      city: addrForm.city || '',
+
+      address:
+        addrForm.address || '',
+
+      city:
+        addrForm.city || '',
+
       province:
         addrForm.province || '',
+
       postalCode:
         addrForm.postalCode || '',
+
       isDefault:
         addresses.length === 0,
     };
 
-    setAddresses((prev) => [
-      ...prev,
-      newAddr,
-    ]);
+    addAddress(newAddr);
 
     setShowAddAddr(false);
 
@@ -488,17 +526,8 @@ export default function ProfilePage() {
 
                               <button
                                 onClick={() =>
-                                  setAddresses(
-                                    (
-                                      prev
-                                    ) =>
-                                      prev.filter(
-                                        (
-                                          a
-                                        ) =>
-                                          a.id !==
-                                          addr.id
-                                      )
+                                  deleteAddress(
+                                    addr.id
                                   )
                                 }
                                 className="p-2 rounded-xl text-red-500 hover:bg-red-50"

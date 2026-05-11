@@ -1,27 +1,20 @@
-import { NextRequest } from 'next/server';
-
+// middleware.ts
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export function middleware(
-  request: NextRequest
-) {
-  const role =
-    request.cookies.get('role')
-      ?.value;
+export function middleware(request: NextRequest) {
+  const role = request.cookies.get('role')?.value;
+  const { pathname } = request.nextUrl;
 
-  const pathname =
-    request.nextUrl.pathname;
+  if (pathname.startsWith('/admin')) {
+    // 1. Jika belum login (tidak ada cookie), lempar ke halaman login
+    if (!role) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
 
-  if (
-    pathname.startsWith('/admin')
-  ) {
+    // 2. Jika sudah login tapi bukan ADMIN, baru lempar ke unauthorized
     if (role !== 'ADMIN') {
-      return NextResponse.redirect(
-        new URL(
-          '/unauthorized',
-          request.url
-        )
-      );
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
   }
 

@@ -2,8 +2,8 @@ import { MapPin, Phone, Mail, MessageCircle, Clock } from 'lucide-react';
 
 export default function ContactSidebar() {
   const contactInfo = [
-    { icon: <MapPin className="w-5 h-5 text-blue-600" />, label: 'Alamat', value: 'Jl. Raya Susu Kita No. 1, Jakarta Selatan, DKI Jakarta 12345' },
-    { icon: <Phone className="w-5 h-5 text-green-600" />, label: 'Telepon / WhatsApp', value: '0812-3456-7890' },
+    { icon: <MapPin className="w-5 h-5 text-blue-600" />, label: 'Alamat', value: 'Jl. Pahlawan No.15a, Tambran, Kec. Magetan, Kabupaten Magetan, Jawa Timur 63318' },
+    { icon: <Phone className="w-5 h-5 text-green-600" />, label: 'Telepon / WhatsApp', value: '0813-5703-7350' },
     { icon: <Mail className="w-5 h-5 text-orange-600" />, label: 'Email', value: 'info@tokosusukita.com' },
   ];
 
@@ -22,7 +22,7 @@ export default function ContactSidebar() {
             </div>
           ))}
         </div>
-        <a href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer" className="mt-6 w-full flex items-center justify-center gap-2 bg-green-500 text-white py-3 rounded-2xl hover:bg-green-600 transition-colors font-medium text-sm">
+        <a href="https://wa.me/6281357037350" target="_blank" rel="noopener noreferrer" className="mt-6 w-full flex items-center justify-center gap-2 bg-green-500 text-white py-3 rounded-2xl hover:bg-green-600 transition-colors font-medium text-sm">
           <MessageCircle className="w-5 h-5" /> Chat WhatsApp Sekarang
         </a>
       </div>

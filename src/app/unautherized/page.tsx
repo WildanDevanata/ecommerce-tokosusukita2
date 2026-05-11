@@ -1,76 +1,51 @@
 'use client';
 
 import Link from 'next/link';
-
 import { useRouter } from 'next/navigation';
 
 export default function UnauthorizedPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="text-center max-w-md">
-        <div className="text-8xl mb-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white border border-gray-200 rounded-3xl p-10 max-w-md w-full text-center shadow-sm">
+
+        <div className="text-7xl mb-4">
           🚫
         </div>
 
-        <h1 className="text-gray-800 text-5xl font-bold mb-2">
+        <h1 className="text-4xl font-bold text-gray-800 mb-2">
           403
         </h1>
 
-        <h2 className="text-gray-700 mb-3">
-          Akses Ditolak
+        <h2 className="text-xl font-semibold text-gray-700 mb-3">
+          Unauthorized
         </h2>
 
-        <p className="text-gray-500 text-sm mb-2">
-          Anda tidak memiliki izin
-          untuk mengakses halaman ini.
+        <p className="text-sm text-gray-500 mb-8">
+          Anda tidak memiliki akses ke halaman admin.
         </p>
 
-        <p className="text-gray-400 text-xs mb-8">
-          Halaman Admin hanya dapat
-          diakses oleh pengguna dengan
-          role <strong>ADMIN</strong>.
-        </p>
-
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-left">
-          <p className="text-sm text-red-700 font-medium mb-2">
-            🔐 Middleware Proteksi
-            Aktif
-          </p>
-
-          <p className="text-xs text-red-600">
-            Route
-            /dashboard/admin/*
-            dilindungi dan hanya dapat
-            diakses oleh
-            Administrator.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="flex flex-col gap-3">
           <button
-            onClick={() =>
-              router.back()
-            }
-            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-2xl hover:bg-gray-100 transition-colors"
+            onClick={() => router.back()}
+            className="w-full py-3 rounded-2xl border border-gray-300 hover:bg-gray-100 transition"
           >
             ← Kembali
           </button>
 
           <Link
-            href="/"
-            className="px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-colors"
+            href="/login"
+            className="w-full py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 transition"
           >
-            🏠 Ke Beranda
+            Login
           </Link>
 
           <Link
-            href="/login"
-            className="px-6 py-3 bg-orange-500 text-white rounded-2xl hover:bg-orange-600 transition-colors"
+            href="/"
+            className="w-full py-3 rounded-2xl bg-gray-800 text-white hover:bg-black transition"
           >
-            🔑 Login sebagai
-            Admin
+            Beranda
           </Link>
         </div>
       </div>

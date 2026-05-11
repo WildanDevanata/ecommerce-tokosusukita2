@@ -126,6 +126,20 @@ export interface User {
 
   isActive?: boolean;
   createdAt?: string;
+
+  addresses?: Address[];
+}
+
+export interface Address {
+  id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  address: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  isDefault: boolean;
 }
 
 // ================= CONTEXT TYPE =================
@@ -161,6 +175,18 @@ interface AppContextType {
   setUsers: React.Dispatch<
     React.SetStateAction<User[]>
   >;
+
+updateProfile: (
+  data: Partial<User>
+) => Promise<void>;
+
+addAddress: (
+  address: Address
+) => Promise<void>;
+
+deleteAddress: (
+ id: string
+) => Promise<void>;
 
   addCategory: (
     category: Category
@@ -418,6 +444,136 @@ export const AppProvider = ({
     );
   };
 
+const updateProfile = async (
+  data: Partial<User>
+) => {
+  if (!currentUser) return;
+
+  try {
+    const res = await fetch(
+      `/api/users/${currentUser.id}`,
+      {
+        method: 'PATCH',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body: JSON.stringify(data),
+      }
+    );
+
+    if (!res.ok) {
+      const err =
+        await res.text();
+
+      console.log(err);
+
+      throw new Error(
+        'Gagal update profile'
+      );
+    }
+
+    const updatedUser =
+      await res.json();
+
+    setCurrentUser(updatedUser);
+
+    localStorage.setItem(
+      'user',
+      JSON.stringify(updatedUser)
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const addAddress = async (
+  address: Address
+) => {
+  if (!currentUser) return;
+
+  try {
+    const res = await fetch(
+      `/api/users/${currentUser.id}/addresses`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+        body: JSON.stringify(address),
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(
+        'Gagal tambah alamat'
+      );
+    }
+
+    const newAddress =
+      await res.json();
+
+    const updatedUser = {
+      ...currentUser,
+      addresses: [
+        ...(currentUser.addresses ||
+          []),
+        newAddress,
+      ],
+    };
+
+    setCurrentUser(updatedUser);
+
+    localStorage.setItem(
+      'user',
+      JSON.stringify(updatedUser)
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const deleteAddress = async (
+  id: string
+) => {
+  if (!currentUser) return;
+
+  try {
+    const res = await fetch(
+      `/api/users/${currentUser.id}/addresses/${id}`,
+      {
+        method: 'DELETE',
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(
+        'Gagal hapus alamat'
+      );
+    }
+
+    const updatedUser = {
+      ...currentUser,
+      addresses:
+        currentUser.addresses?.filter(
+          (addr) => addr.id !== id
+        ) || [],
+    };
+
+    setCurrentUser(updatedUser);
+
+    localStorage.setItem(
+      'user',
+      JSON.stringify(updatedUser)
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+
   const updateOrderPaymentStatus = (
     orderId: string,
     status: Order['paymentStatus']
@@ -548,27 +704,30 @@ const cancelOrder = (
     );
   };
 
-  const login = (user: User) => {
-    setCurrentUser(user);
+// Di dalam AppContext.tsx (Fungsi Login)
+const login = (user: User) => {
+  setCurrentUser(user);
+  setIsLoggedIn(true);
 
-    setIsLoggedIn(true);
+  // Simpan ke LocalStorage untuk UI State
+  localStorage.setItem('user', JSON.stringify(user));
 
-    localStorage.setItem(
-      'user',
-      JSON.stringify(user)
-    );
-  };
+  // SIMPAN KE COOKIE UNTUK MIDDLEWARE (Kritikal!)
+  // Gunakan document.cookie jika tidak ingin install library
+  document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`; 
+};
 
-  const logout = () => {
-    setCurrentUser(null);
+const logout = () => {
+  setCurrentUser(null);
+  setIsLoggedIn(false);
+  localStorage.removeItem('user');
+  localStorage.removeItem('cart');
 
-    setIsLoggedIn(false);
-
-    localStorage.removeItem('user');
-    localStorage.removeItem('cart');
-
-    setCart([]);
-  };
+  // HAPUS COOKIE SAAT LOGOUT
+  document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  
+  setCart([]);
+};
 
   // ================= DERIVED =================
 
@@ -606,6 +765,10 @@ const cancelOrder = (
         setProducts,
         setCategories,
         setUsers,
+
+        updateProfile,
+        addAddress,
+        deleteAddress,
 
         refreshCategories,
         refreshOrders,

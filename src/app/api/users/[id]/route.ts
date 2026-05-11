@@ -1,28 +1,58 @@
 import { prisma } from '@/lib/prisma';
-import { NextRequest, NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server';
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: Params
+) {
   try {
     const body = await req.json();
 
-    const updated = await prisma.user.update({
-      where: {
-        id: params.id,
-      },
-      data: body,
-    });
+    // ✅ wajib await params
+    const { id } = await params;
 
-    return NextResponse.json(updated);
-  } catch (error) {
+    const updatedUser =
+      await prisma.user.update({
+        where: {
+          id,
+        },
+
+        data: {
+          name: body.name,
+          phone: body.phone,
+        },
+
+        include: {
+          addresses: true,
+        },
+      });
+
     return NextResponse.json(
-      { message: 'Gagal update user' },
-      { status: 500 }
+      updatedUser
+    );
+  } catch (error) {
+    console.log(
+      'UPDATE USER ERROR:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        message:
+          'Gagal update user',
+      },
+      {
+        status: 500,
+      }
     );
   }
 }

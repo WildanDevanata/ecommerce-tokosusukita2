@@ -21,9 +21,23 @@ export default function ProductsPage() {
 
   // Filter States (Sesuai kode asli kamu)
   const [search, setSearch] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    searchParams.get('category') ? [searchParams.get('category')!] : []
+  const categoryParam =
+  searchParams.get('category');
+
+const [selectedCategories, setSelectedCategories] =
+  useState<string[]>(
+    categoryParam
+      ? [categoryParam]
+      : []
   );
+
+useEffect(() => {
+  if (categoryParam) {
+    setSelectedCategories([
+      categoryParam,
+    ]);
+  }
+}, [categoryParam]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [sortBy, setSortBy] = useState('newest');
   const [minRating, setMinRating] = useState(0);

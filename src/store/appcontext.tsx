@@ -22,58 +22,29 @@ export interface BankAccount {
 
 export interface Order {
   id: string;
-
   orderNumber: string;
-
   userId?: string;
-
-  userName: string;
-
+  userName: string; // Opsional: pastikan di API join dengan user.name
   totalAmount: number;
-
   shippingCost: number;
-
-  paymentStatus:
-    | 'PENDING'
-    | 'WAITING_VERIFICATION'
-    | 'PAID'
-    | 'FAILED'
-    | 'REFUNDED';
-
+  paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED';
   paymentMethod?: string;
-
-  status:
-    | 'PENDING'
-    | 'CONFIRMED'
-    | 'PROCESSING'
-    | 'SHIPPED'
-    | 'DELIVERED'
-    | 'CANCELLED';
-
+  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
   createdAt: string;
-
   updatedAt: string;
-
   paymentProofUrl?: string;
-
   trackingNumber?: string;
-
   courier?: string;
 
-  shippingRecipient?: string;
+  // --- DISESUAIKAN DENGAN PRISMA SCHEMA (FLAT FIELDS) ---
+  shippingRecipient: string;
+  shippingPhone: string;
+  shippingAddress: string;
+  shippingCity: string;
+  shippingProvince: string;
+  shippingPostalCode: string;
 
-  shippingPhone?: string;
-
-  shippingAddress?: {
-    recipientName: string;
-    phone: string;
-    address: string;
-    city: string;
-    province?: string;
-    postalCode?: string;
-  };
-
-  items?: {
+  items: {
     id: string;
     productName: string;
     quantity: number;
@@ -643,30 +614,43 @@ const deleteAddress = async (
     );
   };
 
-  const uploadPaymentProof =
-  async (
-    orderId: string,
-    proofUrl: string,
-    paymentMethod: string
-  ) => {
+  const uploadPaymentProof = async (
+  orderId: string,
+  proofUrl: string,
+  paymentMethod: string
+) => {
+  try {
+    // UBAH INI: Hapus '/payment' di ujung URL
+    const res = await fetch(`/api/orders/${orderId}`, { 
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        paymentProofUrl: proofUrl, 
+        paymentMethod, // Kirim ini agar backend bisa mengupdate metode pembayaran
+        paymentStatus: 'WAITING_VERIFICATION'
+      }),
+    });
+
+    if (!res.ok) throw new Error('Gagal upload bukti');
+
+    // Update State Lokal setelah API berhasil
     setOrders((prev) =>
       prev.map((order) =>
         order.id === orderId
           ? {
               ...order,
-
-              paymentProofUrl:
-                proofUrl,
-
+              paymentProofUrl: proofUrl,
               paymentMethod,
-
-              paymentStatus:
-                'WAITING_VERIFICATION',
+              paymentStatus: 'WAITING_VERIFICATION',
             }
           : order
       )
     );
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Gagal menyimpan bukti pembayaran ke server.");
+  }
+};
 
 const cancelOrder = (
   orderId: string

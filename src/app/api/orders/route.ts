@@ -6,7 +6,6 @@ export async function GET() {
     const orders = await prisma.order.findMany({
       include: {
         user: true,
-
         items: {
           include: {
             product: true,
@@ -19,88 +18,100 @@ export async function GET() {
       },
     });
 
-    const enrichedOrders = orders.map(
-      (order) => ({
-       id: order.id,
+    const enrichedOrders = orders.map((order) => ({
+      id: order.id,
 
-userId: order.userId,
+      userId: order.userId,
 
-orderNumber: order.orderNumber,
+      orderNumber: order.orderNumber,
 
-        userName:
-          order.user?.name ||
-          order.shippingRecipient ||
-          "Guest",
+      userName:
+        order.user?.name ||
+        order.shippingRecipient ||
+        "Guest",
 
-        userEmail:
-          order.user?.email || "-",
+      userEmail:
+        order.user?.email || "-",
 
-        totalAmount:
-          order.totalAmount,
+      totalAmount:
+        order.totalAmount,
 
-        paymentStatus:
-          order.paymentStatus,
+      shippingCost:
+        order.shippingCost,
 
-        paymentMethod:
-          order.paymentMethod,
-        paymentProofUrl: order.paymentProofUrl || (order as any).payment?.paymentProof || null,
+      paymentStatus:
+        order.paymentStatus,
 
-        status: order.status,
+      paymentMethod:
+        order.paymentMethod,
 
-        createdAt:
-          order.createdAt,
+      paymentProofUrl:
+        order.paymentProofUrl ||
+        (order as any).payment?.paymentProof ||
+        null,
 
-        updatedAt:
-          order.updatedAt,
+      status:
+        order.status,
 
-        trackingNumber:
-          order.trackingNumber,
+      createdAt:
+        order.createdAt,
 
-        courier: order.courier,
+      updatedAt:
+        order.updatedAt,
 
-        items: order.items.map(
-          (item) => ({
-            id: item.id,
+      trackingNumber:
+        order.trackingNumber,
 
-            productName:
-              item.product?.name ||
-              "Produk",
+      courier:
+        order.courier,
 
-            quantity:
-              item.quantity,
+      notes:
+        order.notes,
 
-            price: item.price,
+      items: order.items.map((item) => ({
+        id: item.id,
 
-            productEmoji: "📦",
+        productId:
+          item.productId,
 
-            productBgColor:
-              "bg-gray-100",
-          })
-        ),
+        productName:
+          item.product?.name ||
+          "Produk",
 
-        shippingAddress: {
-          recipientName:
-            order.shippingRecipient ||
-            order.user?.name ||
-            "-",
+        quantity:
+          item.quantity,
 
-          phone:
-            order.user?.phone ||
-            "-",
+        price:
+          item.price,
 
-          address:
-            order.shippingAddress ||
-            "-",
+        productEmoji: "📦",
 
-          city:
-            order.shippingCity || "-",
-        },
-      })
-    );
+        productBgColor:
+          "bg-gray-100",
+      })),
 
-    return NextResponse.json(
-      enrichedOrders
-    );
+      shippingAddress: {
+        recipientName:
+          order.shippingRecipient,
+
+        phone:
+          order.shippingPhone,
+
+        address:
+          order.shippingAddress,
+
+        city:
+          order.shippingCity,
+
+        province:
+          order.shippingProvince,
+
+        postalCode:
+          order.shippingPostalCode,
+      },
+    }));
+
+    return NextResponse.json(enrichedOrders);
   } catch (error) {
     console.error(error);
 
@@ -108,6 +119,110 @@ orderNumber: order.orderNumber,
       {
         error:
           "Gagal mengambil data orders",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const orderNumber = `ORD-${Date.now()}`;
+
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+
+        totalAmount:
+          body.totalAmount,
+
+        shippingCost:
+          body.shippingCost || 0,
+
+        paymentMethod:
+          body.paymentMethod,
+
+        paymentStatus:
+          body.paymentStatus || "PENDING",
+
+        status:
+          body.status || "PENDING",
+
+        trackingNumber:
+          body.trackingNumber,
+
+        courier:
+          body.courier,
+
+        notes:
+          body.notes,
+
+        paymentProofUrl:
+          body.paymentProofUrl,
+
+        user: {
+          connect: {
+            id: body.userId,
+          },
+        },
+
+        shippingRecipient:
+          body.shippingRecipient,
+
+        shippingPhone:
+          body.shippingPhone,
+
+        shippingAddress:
+          body.shippingAddress,
+
+        shippingCity:
+          body.shippingCity,
+
+        shippingProvince:
+          body.shippingProvince,
+
+        shippingPostalCode:
+          body.shippingPostalCode,
+
+        items: {
+          create: body.items.map(
+            (item: any) => ({
+              productId:
+                item.productId,
+
+              quantity:
+                item.quantity,
+
+              price:
+                item.price,
+            })
+          ),
+        },
+      },
+
+      include: {
+        user: true,
+
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(order);
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      {
+        error:
+          "Gagal membuat pesanan",
       },
       {
         status: 500,

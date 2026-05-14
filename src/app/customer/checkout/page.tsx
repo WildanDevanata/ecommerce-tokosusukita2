@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
 import Link from 'next/link';
+
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 import {
   MapPin,
@@ -49,7 +50,6 @@ export default function CheckoutPage() {
     cart,
     currentUser,
     bankAccounts,
-    orders,
   } = useApp();
 
   const [paymentMethod, setPaymentMethod] =
@@ -99,17 +99,19 @@ export default function CheckoutPage() {
 
   // ================= REDIRECT =================
 
-useEffect(() => {
+  useEffect(() => {
+    if (cart.length === 0) {
+      router.push(
+        '/customer/cart'
+      );
+    }
+  }, [cart, router]);
+
   if (cart.length === 0) {
-    router.push('/customer/cart');
+    return null;
   }
-}, [cart, router]);
 
-if (cart.length === 0) {
-  return null;
-}
-
-  // ================= HANDLERS =================
+  // ================= HANDLER =================
 
   const handlePlaceOrder =
     async () => {
@@ -287,7 +289,6 @@ if (cart.length === 0) {
             </h1>
           </div>
 
-          {/* Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT */}
             <div className="lg:col-span-2 space-y-5">
@@ -298,7 +299,8 @@ if (cart.length === 0) {
                     <MapPin className="w-5 h-5 text-blue-600" />
 
                     <h3 className="text-gray-800 font-bold">
-                      Alamat Pengiriman
+                      Alamat
+                      Pengiriman
                     </h3>
                   </div>
 
@@ -408,6 +410,7 @@ if (cart.length === 0) {
                   </h3>
                 </div>
 
+                {/* PAYMENT METHODS */}
                 <div className="space-y-2 mb-4">
                   {paymentMethods.map(
                     (method) => (
@@ -523,9 +526,12 @@ if (cart.length === 0) {
                             <div
                               className={`${bank.color} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}
                             >
-                              {
-                                bank.bankName?.[0]
-                              }
+                              {bank.bankName
+                                .split(
+                                  ' '
+                                )[1]?.[0] ||
+                                bank
+                                  .bankName?.[0]}
                             </div>
 
                             <div>
@@ -548,6 +554,118 @@ if (cart.length === 0) {
                           </label>
                         ))}
                     </div>
+
+                    <p className="text-xs text-orange-700 mt-3">
+                      ⚠️ Setelah
+                      transfer,
+                      upload bukti
+                      pembayaran di
+                      halaman detail
+                      pesanan
+                    </p>
+                  </div>
+                )}
+
+                {/* EWALLET */}
+                {paymentMethod ===
+                  'EWALLET' && (
+                  <div className="bg-green-50 rounded-xl p-4">
+                    <p className="text-sm font-medium text-green-800 mb-3">
+                      Pilih E-Wallet:
+                    </p>
+
+                    <div className="space-y-2">
+                      {activeBanks
+                        .filter(
+                          (b) =>
+                            b.type ===
+                            'EWALLET'
+                        )
+                        .map((wallet) => (
+                          <label
+                            key={
+                              wallet.id
+                            }
+                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${
+                              selectedBank ===
+                              wallet.id
+                                ? 'border-green-600'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              checked={
+                                selectedBank ===
+                                wallet.id
+                              }
+                              onChange={() =>
+                                setSelectedBank(
+                                  wallet.id
+                                )
+                              }
+                              className="sr-only"
+                            />
+
+                            <div
+                              className={`w-3.5 h-3.5 rounded-full border-2 ${
+                                selectedBank ===
+                                wallet.id
+                                  ? 'border-green-600 bg-green-600'
+                                  : 'border-gray-300'
+                              }`}
+                            />
+
+                            <div
+                              className={`${wallet.color} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}
+                            >
+                              {
+                                wallet.bankName?.[0]
+                              }
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">
+                                {
+                                  wallet.bankName
+                                }
+                              </p>
+
+                              <p className="text-xs text-gray-500">
+                                {
+                                  wallet.accountNumber
+                                }{' '}
+                                a.n.{' '}
+                                {
+                                  wallet.accountName
+                                }
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* MIDTRANS */}
+                {paymentMethod ===
+                  'MIDTRANS' && (
+                  <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-700">
+                    💳 Anda akan
+                    diarahkan ke
+                    halaman Midtrans
+                    setelah pesanan
+                    dibuat.
+                  </div>
+                )}
+
+                {/* COD */}
+                {paymentMethod ===
+                  'COD' && (
+                  <div className="bg-orange-50 rounded-xl p-4 text-sm text-orange-700">
+                    📦 Bayar langsung
+                    ke kurir saat
+                    pesanan tiba.
                   </div>
                 )}
 
@@ -589,7 +707,8 @@ if (cart.length === 0) {
                       <div
                         className={`${item.bgColor} w-8 h-8 rounded-lg flex items-center justify-center text-sm`}
                       >
-                        🛒
+                        {item.image ||
+                          '🛒'}
                       </div>
 
                       <div className="flex-1">
@@ -637,7 +756,14 @@ if (cart.length === 0) {
                       {courier})
                     </span>
 
-                    <span>
+                    <span
+                      className={
+                        shippingCost ===
+                        0
+                          ? 'text-green-600 font-medium'
+                          : ''
+                      }
+                    >
                       {shippingCost ===
                       0
                         ? 'GRATIS'
@@ -668,7 +794,7 @@ if (cart.length === 0) {
                     loading ||
                     !address
                   }
-                  className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
                 >
                   {loading ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

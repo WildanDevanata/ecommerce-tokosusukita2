@@ -49,6 +49,8 @@ export default function CartPage() {
 
   if (cart.length === 0) {
     return (
+      <>
+        <Navbar />
       <div className="flex min-h-[75vh] items-center justify-center px-4">
         <div className="w-full max-w-md rounded-[32px] border border-gray-100 bg-white p-10 text-center shadow-sm">
           <div className="mx-auto mb-6 flex h-28 w-28 items-center justify-center rounded-full bg-blue-50">
@@ -73,6 +75,8 @@ export default function CartPage() {
           </Link>
         </div>
       </div>
+      <Footer />
+          </>
     );
   }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import {
   Search,
   ToggleLeft,
@@ -14,16 +15,32 @@ import {
 import { formatRupiah } from '@/lib/helpers';
 import { Product } from '@/store/appcontext';
 
+const CLOUD_NAME = 'dwjuyd3xj';
+const PRESET_NAME = 'ml_default';
+
 export default function ProductsClient() {
   // ================= STATE =================
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filterCat, setFilterCat] = useState('ALL');
+  const [products, setProducts] =
+    useState<Product[]>([]);
 
-  const [showModal, setShowModal] = useState(false);
+  const [categories, setCategories] =
+    useState<any[]>([]);
+
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
+  const [uploadingImage, setUploadingImage] =
+    useState(false);
+
+  const [search, setSearch] =
+    useState('');
+
+  const [filterCat, setFilterCat] =
+    useState('ALL');
+
+  const [showModal, setShowModal] =
+    useState(false);
 
   const [editProduct, setEditProduct] =
     useState<Product | null>(null);
@@ -40,7 +57,10 @@ export default function ProductsClient() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch(
+        '/api/products?admin=true'
+      );
+
       const data = await res.json();
 
       setProducts(data);
@@ -51,7 +71,10 @@ export default function ProductsClient() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch(
+        '/api/categories'
+      );
+
       const data = await res.json();
 
       setCategories(data);
@@ -69,74 +92,97 @@ export default function ProductsClient() {
 
     const matchCat =
       filterCat === 'ALL' ||
-      (p as any).categoryId === filterCat;
+      (p as any).categoryId ===
+        filterCat;
 
     return matchSearch && matchCat;
   });
 
   // ================= ACTION =================
 
-const openAdd = () => {
-  setEditProduct(null);
-
-  setForm({
-    isActive: true,
-    image: '',
-    bgColor: 'bg-blue-100',
-  });
-
-  setShowModal(true);
-};
-
-  const openEdit = (product: Product) => {
-    setEditProduct(product);
+  const openAdd = () => {
+    setEditProduct(null);
 
     setForm({
-      ...product,
-      categoryId: (product as any).category?.id,
+      isActive: true,
+      image: '',
+      bgColor: 'bg-blue-100',
     });
 
     setShowModal(true);
   };
 
-const handleDelete = async (id: string) => {
-  if (!confirm('Hapus produk ini?')) return;
+  const openEdit = (
+    product: Product
+  ) => {
+    setEditProduct(product);
 
-  try {
-    const res = await fetch(`/api/products/${id}`, {
-      method: 'DELETE',
+    setForm({
+      ...product,
+      categoryId:
+        (product as any).category?.id,
     });
 
-    if (!res.ok) {
-      throw new Error();
+    setShowModal(true);
+  };
+
+  const handleDelete = async (
+    id: string
+  ) => {
+    if (
+      !confirm('Hapus produk ini?')
+    )
+      return;
+
+    try {
+      const res = await fetch(
+        `/api/products/${id}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error();
+      }
+
+      setProducts((prev) =>
+        prev.filter(
+          (p) => p.id !== id
+        )
+      );
+    } catch (error) {
+      alert(
+        'Gagal menghapus produk'
+      );
     }
+  };
 
-    setProducts((prev) =>
-      prev.filter((p) => p.id !== id)
-    );
-
-  } catch (error) {
-    alert('Gagal menghapus produk');
-  }
-};
-
-  const handleToggle = async (product: Product) => {
+  const handleToggle = async (
+    product: Product
+  ) => {
     try {
       const res = await fetch(
         `/api/products/${product.id}`,
         {
           method: 'PATCH',
+
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type':
+              'application/json',
           },
+
           body: JSON.stringify({
-            isActive: !product.isActive,
+            isActive:
+              !product.isActive,
           }),
         }
       );
 
       if (!res.ok) {
-        throw new Error('Gagal update status');
+        throw new Error(
+          'Gagal update status'
+        );
       }
 
       fetchProducts();
@@ -145,67 +191,86 @@ const handleDelete = async (id: string) => {
     }
   };
 
-const handleSave = async () => {
-  try {
-    setIsSubmitting(true);
+  const handleSave = async () => {
+    try {
+      setIsSubmitting(true);
 
-    const isEdit = Boolean(editProduct?.id);
-
-    const url = isEdit
-      ? `/api/products/${editProduct?.id}`
-      : '/api/products';
-
-    const method = isEdit ? 'PATCH' : 'POST';
-
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-
-      body: JSON.stringify(form),
-    });
-
-    if (!res.ok) {
-      throw new Error('Gagal menyimpan produk');
-    }
-
-    const savedProduct = await res.json();
-
-    if (isEdit) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === savedProduct.id ? savedProduct : p
-        )
+      const isEdit = Boolean(
+        editProduct?.id
       );
-    } else {
-      setProducts((prev) => [savedProduct, ...prev]);
+
+      const url = isEdit
+        ? `/api/products/${editProduct?.id}`
+        : '/api/products';
+
+      const method = isEdit
+        ? 'PATCH'
+        : 'POST';
+
+      const res = await fetch(url, {
+        method,
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) {
+        throw new Error(
+          'Gagal menyimpan produk'
+        );
+      }
+
+      const savedProduct =
+        await res.json();
+
+      if (isEdit) {
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === savedProduct.id
+              ? savedProduct
+              : p
+          )
+        );
+      } else {
+        setProducts((prev) => [
+          savedProduct,
+          ...prev,
+        ]);
+      }
+
+      setShowModal(false);
+      setEditProduct(null);
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        'Terjadi kesalahan'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setShowModal(false);
-    setEditProduct(null);
-
-  } catch (error) {
-    console.error(error);
-    alert('Terjadi kesalahan');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   // ================= RENDER =================
 
   return (
     <div className="space-y-6">
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
             Manajemen Produk
           </h1>
 
           <p className="text-sm text-gray-500 mt-1">
-            {products.length} produk tersedia
+            {products.length} produk
+            tersedia
           </p>
         </div>
 
@@ -214,20 +279,25 @@ const handleSave = async () => {
           className="flex items-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 font-medium"
         >
           <Plus className="w-5 h-5" />
+
           Tambah Produk
         </button>
       </div>
 
       {/* FILTER */}
       <div className="bg-white rounded-3xl border border-gray-100 p-5">
+
         <div className="flex flex-col md:flex-row gap-4">
+
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
 
             <input
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
               placeholder="Cari produk..."
               className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
@@ -237,7 +307,9 @@ const handleSave = async () => {
           <select
             value={filterCat}
             onChange={(e) =>
-              setFilterCat(e.target.value)
+              setFilterCat(
+                e.target.value
+              )
             }
             className="px-5 py-3.5 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
           >
@@ -259,10 +331,14 @@ const handleSave = async () => {
 
       {/* TABLE */}
       <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+
         <div className="overflow-x-auto">
+
           <table className="w-full">
+
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
+
                 {[
                   'Produk',
                   'Kategori',
@@ -282,21 +358,29 @@ const handleSave = async () => {
             </thead>
 
             <tbody className="divide-y divide-gray-50">
+
               {filtered.map((p) => (
                 <tr
                   key={p.id}
                   className="hover:bg-gray-50 transition-all"
                 >
+
                   {/* PRODUK */}
                   <td className="px-6 py-4">
+
                     <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 flex-shrink-0">
-  <img
-    src={p.image || '/placeholder.png'}
-    alt={p.name}
-    className="w-full h-full object-cover"
-  />
-</div>
+
+                      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 flex-shrink-0">
+
+                        <img
+                          src={
+                            p.image ||
+                            '/placeholder.png'
+                          }
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
 
                       <div>
                         <h3 className="font-semibold text-gray-800">
@@ -304,7 +388,9 @@ const handleSave = async () => {
                         </h3>
 
                         <p className="text-sm text-gray-400">
-                          {(p as any).weight || 0}g
+                          {(p as any)
+                            .weight || 0}
+                          g
                         </p>
                       </div>
                     </div>
@@ -313,21 +399,29 @@ const handleSave = async () => {
                   {/* KATEGORI */}
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
-                      {(p as any).category?.name}
+                      {
+                        (p as any)
+                          .category?.name
+                      }
                     </span>
                   </td>
 
                   {/* HARGA */}
                   <td className="px-6 py-4">
+
                     <div>
                       <p className="font-bold text-blue-700">
-                        {formatRupiah(p.price)}
+                        {formatRupiah(
+                          p.price
+                        )}
                       </p>
 
-                      {(p as any).originalPrice ? (
+                      {(p as any)
+                        .originalPrice ? (
                         <p className="text-xs text-gray-400 line-through">
                           {formatRupiah(
-                            (p as any).originalPrice
+                            (p as any)
+                              .originalPrice
                           )}
                         </p>
                       ) : null}
@@ -336,6 +430,7 @@ const handleSave = async () => {
 
                   {/* STOK */}
                   <td className="px-6 py-4">
+
                     <span className="font-semibold text-gray-700">
                       {p.stock}
                     </span>
@@ -343,6 +438,7 @@ const handleSave = async () => {
 
                   {/* STATUS */}
                   <td className="px-6 py-4">
+
                     <button
                       onClick={() =>
                         handleToggle(p)
@@ -371,7 +467,9 @@ const handleSave = async () => {
 
                   {/* AKSI */}
                   <td className="px-6 py-4">
+
                     <div className="flex items-center gap-2">
+
                       <button
                         onClick={() =>
                           openEdit(p)
@@ -383,7 +481,9 @@ const handleSave = async () => {
 
                       <button
                         onClick={() =>
-                          handleDelete(p.id)
+                          handleDelete(
+                            p.id
+                          )
                         }
                         className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-all"
                       >
@@ -398,294 +498,539 @@ const handleSave = async () => {
 
           {filtered.length === 0 && (
             <div className="py-16 text-center text-gray-400">
-              Tidak ada produk ditemukan
+              Tidak ada produk
+              ditemukan
             </div>
           )}
         </div>
       </div>
 
       {/* MODAL */}
-      {/* MODAL */}
-{/* MODAL */}
-{showModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div className="w-full max-w-3xl overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {editProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Lengkapi informasi produk dengan benar
-          </p>
-        </div>
+          <div className="w-full max-w-3xl overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
 
-        <button
-          onClick={() => setShowModal(false)}
-          className="rounded-full p-2 transition hover:bg-gray-100"
-        >
-          <X className="h-5 w-5 text-gray-500" />
-        </button>
-      </div>
+            {/* HEADER */}
+            <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
 
-      {/* CONTENT */}
-      <div className="max-h-[85vh] overflow-y-auto px-8 py-7">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {editProduct
+                    ? 'Edit Produk'
+                    : 'Tambah Produk Baru'}
+                </h2>
 
-        <div className="space-y-6">
+                <p className="mt-1 text-sm text-gray-500">
+                  Lengkapi informasi
+                  produk dengan benar
+                </p>
+              </div>
 
-          {/* NAMA */}
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-700">
-              Nama Produk *
-            </label>
-
-            <input
-              type="text"
-              value={form.name || ''}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  name: e.target.value,
-                }))
-              }
-              placeholder="Nama produk..."
-              className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-
-          {/* GRID */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-            {/* KATEGORI */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Kategori *
-              </label>
-
-              <select
-                value={(form as any).categoryId || ''}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    categoryId: e.target.value,
-                  }))
+              <button
+                onClick={() =>
+                  setShowModal(false)
                 }
-                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                className="rounded-full p-2 transition hover:bg-gray-100"
               >
-                <option value="">Pilih kategori</option>
-
-                {categories.map((cat: any) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.name}
-                  </option>
-                ))}
-              </select>
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
             </div>
 
+            {/* CONTENT */}
+            <div className="max-h-[85vh] overflow-y-auto px-8 py-7">
 
-{/* IMAGE URL */}
-<div className="md:col-span-2">
-  <label className="mb-2 block text-sm font-semibold text-gray-700">
-    Gambar Produk
-  </label>
+              <div className="space-y-6">
 
-  <input
-    type="text"
-    placeholder="https://..."
-    value={(form as any).image || ''}
-    onChange={(e) =>
-      setForm((prev) => ({
-        ...prev,
-        image: e.target.value,
-      }))
-    }
-    className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-  />
+                {/* NAMA */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Nama Produk *
+                  </label>
 
-  {(form as any).image && (
-    <div className="mt-4">
-      <img
-        src={(form as any).image}
-        alt="Preview"
-        className="h-28 w-28 rounded-2xl border border-gray-200 object-cover"
-      />
-    </div>
-  )}
-</div>
+                  <input
+                    type="text"
+                    value={
+                      form.name || ''
+                    }
+                    onChange={(e) =>
+                      setForm(
+                        (prev) => ({
+                          ...prev,
+                          name:
+                            e.target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder="Nama produk..."
+                    className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  />
+                </div>
 
-            {/* HARGA */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Harga Setelah Diskon (Rp) 
-              </label>
+                {/* GRID */}
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
-              <input
-                type="number"
-                value={form.price || ''}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    price: Number(e.target.value),
-                  }))
-                }
-                placeholder="85000"
-                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+                  {/* KATEGORI */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Kategori *
+                    </label>
 
-            {/* HARGA ASLI */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Harga Asli (Rp)
-              </label>
+                    <select
+                      value={
+                        (form as any)
+                          .categoryId ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            categoryId:
+                              e.target
+                                .value,
+                          })
+                        )
+                      }
+                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    >
+                      <option value="">
+                        Pilih kategori
+                      </option>
 
-              <input
-                type="number"
-                value={(form as any).originalPrice || ''}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    originalPrice: Number(e.target.value),
-                  }))
-                }
-                placeholder="100000 (opsional)"
-                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+                      {categories.map(
+                        (
+                          cat: any
+                        ) => (
+                          <option
+                            key={
+                              cat.id
+                            }
+                            value={
+                              cat.id
+                            }
+                          >
+                            {
+                              cat.icon
+                            }{' '}
+                            {
+                              cat.name
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
 
-            {/* STOK */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Stok
-              </label>
+                  {/* UPLOAD IMAGE */}
+                  <div className="md:col-span-2">
 
-              <input
-                type="number"
-                value={form.stock || ''}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    stock: Number(e.target.value),
-                  }))
-                }
-                placeholder="50"
-                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Gambar Produk
+                    </label>
 
-            {/* BERAT */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Berat (gram)
-              </label>
+                    <div className="space-y-4">
 
-              <input
-                type="number"
-                value={(form as any).weight || ''}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    weight: Number(e.target.value),
-                  }))
-                }
-                placeholder="400"
-                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
+                      <label className="flex h-36 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50 transition hover:border-blue-400 hover:bg-blue-50">
+
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (
+                            e
+                          ) => {
+                            const file =
+                              e.target
+                                .files?.[0];
+
+                            if (!file)
+                              return;
+
+                            try {
+                              setUploadingImage(
+                                true
+                              );
+
+                              const data =
+                                new FormData();
+
+                              data.append(
+                                'file',
+                                file
+                              );
+
+                              data.append(
+                                'upload_preset',
+                                PRESET_NAME
+                              );
+
+                              const res =
+                                await fetch(
+                                  `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+                                  {
+                                    method:
+                                      'POST',
+                                    body: data,
+                                  }
+                                );
+
+                              const result =
+                                await res.json();
+
+                              if (
+                                !result.secure_url
+                              ) {
+                                throw new Error(
+                                  'Upload gagal'
+                                );
+                              }
+
+                              setForm(
+                                (
+                                  prev
+                                ) => ({
+                                  ...prev,
+                                  image:
+                                    result.secure_url,
+                                })
+                              );
+                            } catch (error) {
+                              console.error(
+                                error
+                              );
+
+                              alert(
+                                'Gagal upload gambar'
+                              );
+                            } finally {
+                              setUploadingImage(
+                                false
+                              );
+                            }
+                          }}
+                        />
+
+                        {uploadingImage ? (
+                          <>
+                            <p className="text-sm font-semibold text-blue-600">
+                              Mengupload...
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-400">
+                              Tunggu
+                              sebentar
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="mb-2 text-4xl">
+                              📷
+                            </div>
+
+                            <p className="text-sm font-semibold text-gray-700">
+                              Klik untuk
+                              upload
+                              gambar
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-400">
+                              PNG, JPG,
+                              WEBP
+                            </p>
+                          </>
+                        )}
+                      </label>
+
+                      {(form as any)
+                        .image && (
+                        <div className="relative w-fit">
+
+                          <img
+                            src={
+                              (
+                                form as any
+                              ).image
+                            }
+                            alt="Preview"
+                            className="h-32 w-32 rounded-2xl border border-gray-200 object-cover"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm(
+                                (
+                                  prev
+                                ) => ({
+                                  ...prev,
+                                  image:
+                                    '',
+                                })
+                              )
+                            }
+                            className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* HARGA */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Harga Setelah
+                      Diskon (Rp)
+                    </label>
+
+                    <input
+                      type="number"
+                      value={
+                        form.price ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            price:
+                              Number(
+                                e.target
+                                  .value
+                              ),
+                          })
+                        )
+                      }
+                      placeholder="85000"
+                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  {/* HARGA ASLI */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Harga Asli (Rp)
+                    </label>
+
+                    <input
+                      type="number"
+                      value={
+                        (form as any)
+                          .originalPrice ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            originalPrice:
+                              Number(
+                                e.target
+                                  .value
+                              ),
+                          })
+                        )
+                      }
+                      placeholder="100000"
+                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  {/* STOK */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Stok
+                    </label>
+
+                    <input
+                      type="number"
+                      value={
+                        form.stock ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            stock:
+                              Number(
+                                e.target
+                                  .value
+                              ),
+                          })
+                        )
+                      }
+                      placeholder="50"
+                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  {/* BERAT */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Berat (gram)
+                    </label>
+
+                    <input
+                      type="number"
+                      value={
+                        (form as any)
+                          .weight || ''
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            weight:
+                              Number(
+                                e.target
+                                  .value
+                              ),
+                          })
+                        )
+                      }
+                      placeholder="400"
+                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+                </div>
+
+                {/* DESKRIPSI */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Deskripsi
+                  </label>
+
+                  <textarea
+                    rows={5}
+                    value={
+                      (form as any)
+                        .description ||
+                      ''
+                    }
+                    onChange={(e) =>
+                      setForm(
+                        (prev) => ({
+                          ...prev,
+                          description:
+                            e.target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder="Deskripsi produk..."
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none transition-all resize-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  />
+                </div>
+
+                {/* CHECKBOX */}
+                <div className="flex flex-wrap gap-6 pt-1">
+
+                  <label className="flex cursor-pointer items-center gap-3">
+
+                    <input
+                      type="checkbox"
+                      checked={
+                        form.isActive ??
+                        true
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            isActive:
+                              e.target
+                                .checked,
+                          })
+                        )
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+
+                    <span className="text-sm font-medium text-gray-700">
+                      Aktif
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-3">
+
+                    <input
+                      type="checkbox"
+                      checked={
+                        (form as any)
+                          .isFeatured ||
+                        false
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (
+                            prev
+                          ) => ({
+                            ...prev,
+                            isFeatured:
+                              e.target
+                                .checked,
+                          })
+                        )
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+
+                    <span className="text-sm font-medium text-gray-700">
+                      Featured
+                    </span>
+                  </label>
+                </div>
+
+                {/* BUTTON */}
+                <div className="grid grid-cols-2 gap-4 pt-6">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowModal(false)
+                    }
+                    className="h-14 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Batal
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={
+                      isSubmitting ||
+                      uploadingImage
+                    }
+                    className="h-14 rounded-2xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
+                  >
+                    {isSubmitting
+                      ? 'Menyimpan...'
+                      : editProduct
+                      ? 'Update Produk'
+                      : 'Simpan Produk'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* DESKRIPSI */}
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-700">
-              Deskripsi
-            </label>
-
-            <textarea
-              rows={5}
-              value={(form as any).description || ''}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-              placeholder="Deskripsi produk..."
-              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none transition-all resize-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-
-          {/* CHECKBOX */}
-          <div className="flex flex-wrap gap-6 pt-1">
-
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={form.isActive ?? true}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    isActive: e.target.checked,
-                  }))
-                }
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-
-              <span className="text-sm font-medium text-gray-700">
-                Aktif
-              </span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={(form as any).isFeatured || false}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    isFeatured: e.target.checked,
-                  }))
-                }
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-
-              <span className="text-sm font-medium text-gray-700">
-                Featured
-              </span>
-            </label>
-          </div>
-
-          {/* BUTTON */}
-          <div className="grid grid-cols-2 gap-4 pt-6">
-
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="h-14 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-            >
-              Batal
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSubmitting}
-              className="h-14 rounded-2xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
-            >
-              {isSubmitting
-                ? 'Menyimpan...'
-                : editProduct
-                ? 'Update Produk'
-                : 'Simpan Produk'}
-            </button>
-          </div>
-
         </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </div>
   );
 }

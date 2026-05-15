@@ -3,62 +3,151 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// ================= UPDATE PRODUCT =================
+
 export async function PATCH(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } =
+      await context.params;
 
     const body = await req.json();
 
-    const updated = await prisma.product.update({
-      where: {
-        id,
-      },
+    // ================= DYNAMIC UPDATE =================
 
-      data: {
-        name: body.name,
-        price: Number(body.price),
+    const updateData: any = {};
 
-        originalPrice: body.originalPrice
-          ? Number(body.originalPrice)
-          : null,
+    // hanya update field yg dikirim
 
-        stock: Number(body.stock || 0),
-        weight: Number(body.weight || 0),
+    if (body.name !== undefined) {
+      updateData.name = body.name;
+    }
 
-        emoji: body.emoji,
-        description: body.description,
+    if (body.slug !== undefined) {
+      updateData.slug = body.slug;
+    }
 
-        isActive: body.isActive,
-        isFeatured: body.isFeatured,
+    if (body.price !== undefined) {
+      updateData.price =
+        Number(body.price);
+    }
 
-        categoryId: body.categoryId,
-      },
+    if (
+      body.originalPrice !==
+      undefined
+    ) {
+      updateData.originalPrice =
+        body.originalPrice
+          ? Number(
+              body.originalPrice
+            )
+          : null;
+    }
 
-      include: {
-        category: true,
-      },
-    });
+    if (body.stock !== undefined) {
+      updateData.stock =
+        Number(body.stock);
+    }
 
-    return NextResponse.json(updated);
-  } catch (error) {
-    console.error('UPDATE PRODUCT ERROR:', error);
+    if (body.weight !== undefined) {
+      updateData.weight =
+        Number(body.weight);
+    }
+
+    if (
+      body.emoji !== undefined
+    ) {
+      updateData.emoji =
+        body.emoji;
+    }
+
+    if (
+      body.description !==
+      undefined
+    ) {
+      updateData.description =
+        body.description;
+    }
+
+    if (
+      body.isActive !==
+      undefined
+    ) {
+      updateData.isActive =
+        body.isActive;
+    }
+
+    if (
+      body.isFeatured !==
+      undefined
+    ) {
+      updateData.isFeatured =
+        body.isFeatured;
+    }
+
+    if (
+      body.categoryId !==
+      undefined
+    ) {
+      updateData.categoryId =
+        body.categoryId;
+    }
+
+    // ================= UPDATE =================
+
+    const updated =
+      await prisma.product.update({
+        where: {
+          id,
+        },
+
+        data: updateData,
+
+        include: {
+          category: true,
+        },
+      });
 
     return NextResponse.json(
-      { message: 'Gagal update produk' },
-      { status: 500 }
+      updated
+    );
+  } catch (error) {
+    console.error(
+      'UPDATE PRODUCT ERROR:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        message:
+          'Gagal update produk',
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
 
+// ================= DELETE PRODUCT =================
+
 export async function DELETE(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } =
+      await context.params;
 
     await prisma.product.delete({
       where: {
@@ -70,11 +159,19 @@ export async function DELETE(
       success: true,
     });
   } catch (error) {
-    console.error('DELETE PRODUCT ERROR:', error);
+    console.error(
+      'DELETE PRODUCT ERROR:',
+      error
+    );
 
     return NextResponse.json(
-      { message: 'Gagal hapus produk' },
-      { status: 500 }
+      {
+        message:
+          'Gagal hapus produk',
+      },
+      {
+        status: 500,
+      }
     );
   }
 }

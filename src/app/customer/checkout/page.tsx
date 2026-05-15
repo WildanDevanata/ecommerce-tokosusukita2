@@ -700,41 +700,41 @@ export default function CheckoutPage() {
 
                 <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
                   {cart.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2"
-                    >
-                      <div
-                        className={`${item.bgColor} w-8 h-8 rounded-lg flex items-center justify-center text-sm`}
-                      >
-                        {item.image ||
-                          '🛒'}
-                      </div>
+  <div key={item.id} className="flex items-center gap-3"> {/* Jarak gap diperbesar sedikit agar rapi */}
+    {/* CONTAINER FOTO */}
+    <div className={`${item.bgColor || 'bg-gray-100'} w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-50`}>
+      {item.image ? (
+        <img
+          src={item.image}
+          alt={item.name}
+          className="w-full h-full object-cover" // object-cover agar gambar memenuhi kotak tanpa distorsi
+          onError={(e) => {
+            // Fallback jika URL gambar rusak
+            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=📦';
+          }}
+        />
+      ) : (
+        <span className="text-xl">🛒</span>
+      )}
+    </div>
 
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-700">
-                          {item.name}
-                        </p>
+    {/* INFO PRODUK */}
+    <div className="flex-1 min-w-0"> {/* min-w-0 penting agar teks panjang bisa terpotong/wrap dengan baik */}
+      <p className="text-xs font-bold text-gray-800 truncate">
+        {item.name}
+      </p>
 
-                        <p className="text-xs text-gray-500">
-                          {
-                            item.quantity
-                          }
-                          x{' '}
-                          {formatRupiah(
-                            item.price
-                          )}
-                        </p>
-                      </div>
+      <p className="text-[10px] text-gray-500 mt-0.5">
+        {item.quantity} x {formatRupiah(item.price)}
+      </p>
+    </div>
 
-                      <span className="text-xs font-medium text-gray-700">
-                        {formatRupiah(
-                          item.price *
-                            item.quantity
-                        )}
-                      </span>
-                    </div>
-                  ))}
+    {/* SUBTOTAL PER ITEM */}
+    <span className="text-xs font-bold text-gray-700 whitespace-nowrap">
+      {formatRupiah(item.price * item.quantity)}
+    </span>
+  </div>
+))}
                 </div>
 
                 <div className="space-y-2 py-3 border-y border-gray-100 mb-4 text-sm">

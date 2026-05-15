@@ -29,6 +29,17 @@ export default function Navbar() {
 
   const pathname = usePathname();
 
+  // ================= HYDRATION FIX =================
+
+  const [mounted, setMounted] =
+    useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ================= MOBILE MENU =================
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] =
     useState(false);
 
@@ -66,6 +77,10 @@ export default function Navbar() {
       );
     };
   }, []);
+
+  // ================= PREVENT HYDRATION ERROR =================
+
+  if (!mounted) return null;
 
   // ================= ROLE =================
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 import {
   Heart,
@@ -28,62 +29,132 @@ export default function ProductCard({
 
   // ================= HANDLER =================
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (
+    e: React.MouseEvent
+  ) => {
+    e.preventDefault();
+
     addToCart(product);
 
     setShowNotif(true);
 
     setTimeout(() => {
       setShowNotif(false);
-    }, 2500);
+    }, 2000);
   };
 
+  // ================= DISCOUNT =================
+
+  const discount =
+    product.originalPrice &&
+    product.originalPrice >
+      product.price
+      ? Math.round(
+          (1 -
+            product.price /
+              product.originalPrice) *
+            100
+        )
+      : 0;
+
   return (
-    <div className="group relative bg-white rounded-2xl hover:shadow-lg transition-all border border-gray-100 flex flex-col h-full">
-      {/* NOTIFICATION */}
+    <Link
+      href={`/products/${product.slug}`}
+      className="group relative flex flex-col overflow-hidden rounded-[26px] border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+    >
+      {/* ================= NOTIF ================= */}
+
       <div
-        className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
+        className={`absolute top-4 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ${
           showNotif
-            ? 'opacity-100 translate-y-0 scale-100'
-            : 'opacity-0 -translate-y-3 scale-95 pointer-events-none'
+            ? 'translate-y-0 scale-100 opacity-100'
+            : '-translate-y-3 scale-95 opacity-0 pointer-events-none'
         }`}
       >
-        <div className="backdrop-blur-md bg-emerald-500/95 text-white px-4 py-2 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="flex items-center gap-2 rounded-2xl border border-white/20 bg-emerald-500/95 px-4 py-2 text-white shadow-2xl backdrop-blur-md">
+          <CheckCircle2 className="h-4 w-4" />
 
-          <p className="text-xs font-semibold whitespace-nowrap">
-            Berhasil ditambahkan ke
-            keranjang
+          <p className="whitespace-nowrap text-xs font-semibold">
+            Ditambahkan ke keranjang
           </p>
         </div>
       </div>
 
-      {/* TOP */}
-      <div
-        className={`relative ${
-          product.bgColor ||
-          'bg-gray-50'
-        } aspect-square flex items-center justify-center p-4`}
-      >
-        <span className="text-6xl group-hover:scale-110 transition-transform duration-300">
-          {product.emoji}
-        </span>
+      {/* ================= IMAGE ================= */}
 
-        {/* Wishlist */}
+      <div
+        className={`relative aspect-square overflow-hidden ${
+          product.bgColor ||
+          'bg-blue-50'
+        }`}
+      >
+        {/* BADGE LEFT */}
+
+        {(product.isBestSeller ||
+          product.isNew) && (
+          <div className="absolute left-3 top-3 z-20">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow-md ${
+                product.isNew
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`}
+            >
+              {product.isNew
+                ? 'Baru'
+                : '🔥'}
+            </span>
+          </div>
+        )}
+
+        {/* BADGE DISCOUNT */}
+
+        {discount > 0 && (
+          <div className="absolute right-3 top-3 z-20">
+            <span className="rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-md">
+              -{discount}%
+            </span>
+          </div>
+        )}
+
+       {/* IMAGE */}
+        <div className="relative w-full h-full">
+          {product.image ? (
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              sizes="(max-width: 768px) 50vw, 25vw"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-7xl group-hover:scale-110 transition-transform duration-300">
+                {product.emoji ||
+                  '🛍️'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* WISHLIST */}
+
         <button
-          onClick={() =>
+          onClick={(e) => {
+            e.preventDefault();
+
             setIsWishlist(
               !isWishlist
-            )
-          }
-          className={`absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm ${
+            );
+          }}
+          className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all ${
             isWishlist
               ? 'bg-red-500 text-white'
-              : 'bg-white text-gray-400 hover:text-red-500'
+              : 'bg-white/90 text-gray-400 hover:text-red-500'
           }`}
         >
           <Heart
-            className="w-4 h-4"
+            className="h-4 w-4"
             fill={
               isWishlist
                 ? 'currentColor'
@@ -91,54 +162,104 @@ export default function ProductCard({
             }
           />
         </button>
+
+        {/* STOCK */}
+
+        {product.stock <
+          10 &&
+          product.stock >
+            0 && (
+            <div className="absolute bottom-3 left-3">
+              <span className="rounded-full bg-orange-500 px-2 py-1 text-[10px] font-medium text-white">
+                Stok{' '}
+                {product.stock}
+              </span>
+            </div>
+          )}
       </div>
 
-      {/* CONTENT */}
-      <div className="p-4 flex flex-col flex-1">
-        <span className="text-[10px] uppercase tracking-wider font-bold text-blue-500 mb-1">
-          {product.category?.name ||
+      {/* ================= CONTENT ================= */}
+
+      <div className="flex flex-1 flex-col p-4">
+        {/* CATEGORY */}
+
+        <span className="mb-2 inline-flex w-fit rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-600">
+          {product.category
+            ?.name ||
             'Produk'}
         </span>
 
-        <Link
-          href={`/products/${product.slug}`}
-        >
-          <h3 className="font-semibold text-gray-800 hover:text-blue-600 cursor-pointer transition-colors line-clamp-2">
-            {product.name}
-          </h3>
-        </Link>
+        {/* TITLE */}
 
-        <div className="flex items-center gap-1 mb-3 mt-2">
-          <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
+        <h3 className="line-clamp-2 min-h-[44px] text-[15px] font-semibold leading-snug text-gray-800 transition-colors group-hover:text-blue-600">
+          {product.name}
+        </h3>
 
-          <span className="text-xs font-semibold text-gray-700">
-            {product.rating || '4.8'}
-          </span>
-        </div>
+        {/* RATING */}
+{product.rating > 0 && (
+  <div className="mt-2 mb-3 flex items-center gap-1">
+    <Star
+      className="h-3.5 w-3.5 text-yellow-400"
+      fill="currentColor"
+    />
 
-        {/* BOTTOM */}
-        <div className="mt-auto flex items-center justify-between">
-          <p className="text-blue-600 font-bold">
-            {new Intl.NumberFormat(
-              'id-ID',
-              {
-                style: 'currency',
-                currency: 'IDR',
-                maximumFractionDigits: 0,
-              }
-            ).format(product.price)}
-          </p>
+    <span className="text-xs font-medium text-gray-700">
+      {product.rating}
+    </span>
+
+    {product.reviewCount > 0 && (
+      <span className="text-xs text-gray-400">
+        ({product.reviewCount.toLocaleString()})
+      </span>
+    )}
+  </div>
+)}
+
+        {/* PRICE */}
+
+        <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+          <div>
+            <p className="text-[22px] font-bold leading-none text-blue-700">
+              {new Intl.NumberFormat(
+                'id-ID',
+                {
+                  style: 'currency',
+                  currency: 'IDR',
+                  maximumFractionDigits: 0,
+                }
+              ).format(
+                product.price
+              )}
+            </p>
+
+            {product.originalPrice && (
+              <p className="mt-1 text-xs text-gray-400 line-through">
+                {new Intl.NumberFormat(
+                  'id-ID',
+                  {
+                    style: 'currency',
+                    currency: 'IDR',
+                    maximumFractionDigits: 0,
+                  }
+                ).format(
+                  product.originalPrice
+                )}
+              </p>
+            )}
+          </div>
+
+          {/* CART BUTTON */}
 
           <button
             onClick={
               handleAddToCart
             }
-            className="group/cart p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-blue-200 shadow-lg hover:scale-105 active:scale-95"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 transition-all hover:scale-105 hover:bg-blue-700 active:scale-95"
           >
-            <ShoppingCart className="w-4 h-4 group-hover/cart:scale-110 transition-transform" />
+            <ShoppingCart className="h-4 w-4" />
           </button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

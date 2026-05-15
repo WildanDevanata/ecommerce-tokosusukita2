@@ -70,7 +70,7 @@ export interface Product {
   name: string;
   slug: string;
   price: number;
-  categoryName: string;
+  categoryId: string;
   image?: string;
   bgColor: string;
   rating: number;
@@ -119,7 +119,7 @@ interface AppContextType {
   products: Product[];
   categories: Category[];
   cart: CartItem[];
-
+  updateAddress: (id: string, address: Partial<Address>) => Promise<void>;
   currentUser: User | null;
   isLoggedIn: boolean;
 
@@ -255,7 +255,29 @@ export const AppProvider = ({
     useState(true);
 
   // ================= FETCH =================
+  const refreshProducts =
+  async () => {
+    try {
+      const res = await fetch(
+        '/api/products'
+      );
 
+      if (!res.ok) {
+        throw new Error(
+          'Gagal mengambil products'
+        );
+      }
+
+      const data =
+        await res.json();
+
+      setProducts(data);
+    } catch (error) {
+      console.error(error);
+
+      setProducts([]);
+    }
+  };
   const fetchBankAccounts =
     async () => {
       try {
@@ -354,6 +376,7 @@ export const AppProvider = ({
     refreshOrders();
     refreshUsers();
     fetchBankAccounts();
+    refreshProducts();
 
     const savedUser =
       localStorage.getItem('user');
@@ -506,7 +529,55 @@ const addAddress = async (
     console.error(error);
   }
 };
+const updateAddress = async (id: string, updatedData: Partial<Address>) => {
+  if (!currentUser) return;
 
+  try {
+    // 1. Kirim perubahan ke API
+    const res = await fetch(`/api/users/${currentUser.id}/addresses/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedData),
+    });
+
+    if (!res.ok) {
+      throw new Error('Gagal memperbarui alamat di server');
+    }
+
+    const updatedAddressFromDb = await res.json();
+
+    // 2. Update State Lokal
+    const updatedAddresses = (currentUser.addresses || []).map((addr) => {
+      // Jika ini adalah alamat yang diedit
+      if (addr.id === id) {
+        return updatedAddressFromDb;
+      }
+      
+      // Jika alamat yang diedit dijadikan 'Default', 
+      // maka alamat lain secara otomatis bukan default lagi di sisi client
+      if (updatedData.isDefault && addr.id !== id) {
+        return { ...addr, isDefault: false };
+      }
+
+      return addr;
+    });
+
+    const updatedUser = {
+      ...currentUser,
+      addresses: updatedAddresses,
+    };
+
+    // 3. Simpan perubahan ke State dan LocalStorage
+    setCurrentUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+
+  } catch (error) {
+    console.error("Error updateAddress:", error);
+    alert("Gagal memperbarui alamat. Silakan periksa koneksi Anda.");
+  }
+};
 const deleteAddress = async (
   id: string
 ) => {
@@ -715,19 +786,19 @@ const logout = () => {
 
   // ================= DERIVED =================
 
-  const categoriesWithCount =
-    useMemo(() => {
-      return categories.map((cat) => ({
-        ...cat,
+ const categoriesWithCount =
+  useMemo(() => {
+    return categories.map((cat) => ({
+      ...cat,
 
-        productCount: products.filter(
+      productCount:
+        products.filter(
           (p) =>
-            p.categoryName?.toLowerCase() ===
-            cat.name?.toLowerCase()
+            p.categoryId ===
+            cat.id
         ).length,
-      }));
-    }, [categories, products]);
-
+    }));
+  }, [categories, products]);
   // ================= PROVIDER =================
 
   return (
@@ -753,7 +824,7 @@ const logout = () => {
         updateProfile,
         addAddress,
         deleteAddress,
-
+        updateAddress,
         refreshCategories,
         refreshOrders,
         refreshUsers,

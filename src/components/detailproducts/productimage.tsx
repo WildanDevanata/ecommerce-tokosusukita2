@@ -1,57 +1,89 @@
-// src/components/products/product-image.tsx (atau path foldernya)
 import React from 'react';
-import Image from 'next/image'; // 1. WAJIB IMPORT INI
+import Image from 'next/image';
 
 interface ProductImageProps {
-  imagePath: string; // 2. Ganti nama prop dari 'emoji' ke 'imagePath'
+  imagePath: string;
   bgColor: string;
   price: number;
   originalPrice?: number;
 }
 
-export const ProductImage = ({ imagePath, bgColor, price, originalPrice }: ProductImageProps) => {
-  const discount = originalPrice ? Math.round((1 - price / originalPrice) * 100) : 0;
+export const ProductImage = ({
+  imagePath,
+  bgColor,
+  price,
+  originalPrice,
+}: ProductImageProps) => {
+  const discount = originalPrice
+    ? Math.round(
+        (1 - price / originalPrice) * 100
+      )
+    : 0;
 
   return (
     <div>
-      {/* 3. Container Utama untuk Gambar */}
-      <div className={`${bgColor} rounded-3xl aspect-square flex items-center justify-center relative shadow-sm overflow-hidden`}>
-        
-        {/* 4. Ganti tag <span> raksasa dengan tag <Image> */}
-        <div className="relative w-full h-full p-10"> {/* Beri padding agar gambar tidak mentok */}
+      {/* MAIN IMAGE */}
+      <div
+        className={`
+          ${bgColor}
+          rounded-3xl
+          relative
+          overflow-hidden
+          shadow-sm
+          aspect-square
+          p-6
+          flex
+          items-center
+          justify-center
+        `}
+      >
+        {/* IMAGE */}
+        <div className="relative w-full h-full">
           <Image
-            src={imagePath} // Path dari DB: /images/fisher-price...jpg
+            src={imagePath}
             alt="Gambar Produk"
-            fill // Agar gambar memenuhi containernya
-            className="object-contain" // Agar gambar tidak distorsi (gepeng)
-            priority={true} // Prioritas load karena ini gambar utama (LCP)
+            fill
+            className="
+              object-cover
+              rounded-2xl
+            "
+            priority
           />
         </div>
 
-        {/* Badge Diskon (Tetap sama) */}
+        {/* DISCOUNT BADGE */}
         {discount > 0 && (
-          <span className="absolute top-4 left-4 bg-red-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
+          <span className="absolute top-4 left-4 z-10 bg-red-500 text-white text-xs px-3 py-1 rounded-full font-semibold">
             -{discount}% DISKON
           </span>
         )}
       </div>
 
-      {/* 5. Bagian Thumbnail di Bawah (PENTING juga) */}
-      <div className="flex gap-2 mt-3">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className={`${bgColor} rounded-xl w-16 h-16 flex items-center justify-center cursor-pointer border-2 relative overflow-hidden ${i === 1 ? 'border-blue-600' : 'border-transparent hover:border-blue-300'}`}>
-            
-            {/* Pakai <Image> juga untuk thumbnail */}
-            <div className="relative w-full h-full p-2">
-              <Image
-                src={imagePath}
-                alt={`Thumbnail ${i}`}
-                fill
-                className="object-contain"
-                sizes="64px" // Tentukan ukuran thumbnail
-              />
-            </div>
-            
+      {/* THUMBNAILS */}
+      <div className="flex gap-3 mt-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className={`
+              relative
+              w-20
+              h-20
+              rounded-2xl
+              overflow-hidden
+              border-2
+              cursor-pointer
+              ${i === 1
+                ? 'border-blue-600'
+                : 'border-gray-200 hover:border-blue-300'}
+            `}
+          >
+            <Image
+              src={imagePath}
+              alt={`Thumbnail ${i}`}
+              fill
+              className="object-cover"
+              sizes="80px"
+            />
           </div>
         ))}
       </div>

@@ -1,35 +1,17 @@
 'use client';
 
-import {
-  useState,
-  useEffect,
-} from 'react';
-
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
 import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Lock,
-  Save,
-  Plus,
-  Trash2,
-  Edit3,
-  Camera,
-  Check,
+  User, Mail, Phone, MapPin, Lock, Save, Plus,
+  Trash2, Edit3, Camera, Check, X
 } from 'lucide-react';
 
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
-
-import {
-  useApp,
-} from '@/store/appcontext';
+import { useApp } from '@/store/appcontext';
 
 // ================= TYPES =================
-
 type Address = {
   id: string;
   label: string;
@@ -48,135 +30,90 @@ export default function ProfilePage() {
     updateProfile,
     addAddress,
     deleteAddress,
+    updateAddress,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<
-    'profile' | 'address' | 'security'
-  >('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'address' | 'security'>('profile');
+  const [editMode, setEditMode] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState({ name: '', phone: '' });
 
-  const [editMode, setEditMode] =
-    useState(false);
-
-  const [saved, setSaved] =
-    useState(false);
-
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
+  // Address States
+  const addresses = currentUser?.addresses || [];
+  const [showAddAddr, setShowAddAddr] = useState(false);
+  const [isEditingAddr, setIsEditingAddr] = useState(false);
+  const [addrForm, setAddrForm] = useState<Partial<Address>>({
+    label: 'Rumah',
+    isDefault: false,
   });
 
-  const addresses =
-    currentUser?.addresses || [];
-
-  const [showAddAddr, setShowAddAddr] =
-    useState(false);
-
-  const [addrForm, setAddrForm] =
-    useState<Partial<Address>>({
-      label: 'Rumah',
-      isDefault: false,
-    });
-
   // ================= SYNC USER =================
-
   useEffect(() => {
     if (currentUser) {
       setForm({
-        name:
-          currentUser.name || '',
-        phone:
-          currentUser.phone || '',
+        name: currentUser.name || '',
+        phone: currentUser.phone || '',
       });
     }
   }, [currentUser]);
 
   // ================= HANDLERS =================
-
-  const handleSaveProfile =
-  async () => {
-    await updateProfile({
-      name: form.name,
-      phone: form.phone,
-    });
-
+  const handleSaveProfile = async () => {
+    await updateProfile({ name: form.name, phone: form.phone });
     setEditMode(false);
-
     setSaved(true);
-
-    setTimeout(() => {
-      setSaved(false);
-    }, 2000);
+    setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleAddAddress = () => {
-    if (
-      !addrForm.address ||
-      !addrForm.city
-    )
-      return;
+  const handleOpenEditAddr = (addr: Address) => {
+    setAddrForm(addr);
+    setIsEditingAddr(true);
+    setShowAddAddr(true);
+  };
 
-    const newAddr: Address = {
-      id: `addr-${Date.now()}`,
-
-      label:
-        addrForm.label || 'Rumah',
-
-      recipientName:
-        addrForm.recipientName ||
-        currentUser?.name ||
-        '',
-
-      phone:
-        addrForm.phone ||
-        currentUser?.phone ||
-        '',
-
-      address:
-        addrForm.address || '',
-
-      city:
-        addrForm.city || '',
-
-      province:
-        addrForm.province || '',
-
-      postalCode:
-        addrForm.postalCode || '',
-
-      isDefault:
-        addresses.length === 0,
-    };
-
-    addAddress(newAddr);
-
+  const resetAddrForm = () => {
     setShowAddAddr(false);
-
-    setAddrForm({
-      label: 'Rumah',
-      isDefault: false,
-    });
+    setIsEditingAddr(false);
+    setAddrForm({ label: 'Rumah', isDefault: false });
   };
 
-  // ================= TABS =================
+  const handleAddOrUpdateAddress = async () => {
+    if (!addrForm.address || !addrForm.city || !addrForm.recipientName) {
+      alert("Mohon lengkapi Nama Penerima, Alamat, dan Kota.");
+      return;
+    }
+
+    if (isEditingAddr && addrForm.id) {
+      await updateAddress(addrForm.id, addrForm);
+    } else {
+      const newAddr: Address = {
+        id: `addr-${Date.now()}`,
+        label: addrForm.label || 'Rumah',
+        recipientName: addrForm.recipientName || currentUser?.name || '',
+        phone: addrForm.phone || currentUser?.phone || '',
+        address: addrForm.address || '',
+        city: addrForm.city || '',
+        province: addrForm.province || '',
+        postalCode: addrForm.postalCode || '',
+        isDefault: addresses.length === 0,
+      };
+      await addAddress(newAddr);
+    }
+    resetAddrForm();
+  };
+
+  const handleDeleteAddr = async (id: string) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus alamat ini?")) {
+      await deleteAddress(id);
+    }
+  };
 
   const tabs = [
-    {
-      id: 'profile',
-      label: 'Profil',
-      icon: User,
-    },
-    {
-      id: 'address',
-      label: 'Alamat',
-      icon: MapPin,
-    },
-    {
-      id: 'security',
-      label: 'Keamanan',
-      icon: Lock,
-    },
+    { id: 'profile', label: 'Profil', icon: User },
+    { id: 'address', label: 'Alamat', icon: MapPin },
+    { id: 'security', label: 'Keamanan', icon: Lock },
   ] as const;
-
+  
   return (
     <>
       <Navbar />
@@ -428,192 +365,160 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* ADDRESS TAB */}
-              {activeTab === 'address' && (
-                <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-2xl font-black text-gray-800">
-                        Alamat Pengiriman
-                      </h3>
+{/* ADDRESS TAB */}
+{activeTab === 'address' && (
+  <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm">
+    
+    {!showAddAddr ? (
+      <>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-2xl font-black text-gray-800">Alamat Pengiriman</h3>
+            <p className="text-sm text-gray-500 mt-1">Kelola alamat pengiriman Anda</p>
+          </div>
 
-                      <p className="text-sm text-gray-500 mt-1">
-                        Kelola alamat
-                        pengiriman Anda
-                      </p>
-                    </div>
+          <button
+            onClick={() => {
+              setIsEditingAddr(false);
+              setShowAddAddr(true);
+              setAddrForm({ label: 'Rumah', isDefault: addresses.length === 0 });
+            }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-2xl hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Tambah Alamat
+          </button>
+        </div>
 
-                    <button
-                      onClick={() =>
-                        setShowAddAddr(true)
-                      }
-                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-2xl hover:bg-blue-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Tambah Alamat
-                    </button>
-                  </div>
-
-                  {/* Address List */}
-                  {addresses.length === 0 ? (
-                    <div className="py-16 text-center">
-                      <div className="text-6xl mb-4">
-                        📍
-                      </div>
-
-                      <h3 className="text-xl font-bold text-gray-700">
-                        Belum Ada Alamat
-                      </h3>
-
-                      <p className="text-gray-400 mt-2">
-                        Tambahkan alamat
-                        pengiriman baru
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {addresses.map(
-                        (addr) => (
-                          <div
-                            key={addr.id}
-                            className={`rounded-3xl border p-5 ${
-                              addr.isDefault
-                                ? 'border-blue-300 bg-blue-50'
-                                : 'border-gray-200'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full font-semibold">
-                                    {
-                                      addr.label
-                                    }
-                                  </span>
-
-                                  {addr.isDefault && (
-                                    <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-semibold">
-                                      Utama
-                                    </span>
-                                  )}
-                                </div>
-
-                                <h4 className="font-bold text-gray-800">
-                                  {
-                                    addr.recipientName
-                                  }
-                                </h4>
-
-                                <p className="text-sm text-gray-500 mt-1">
-                                  {
-                                    addr.phone
-                                  }
-                                </p>
-
-                                <p className="text-sm text-gray-600 mt-2">
-                                  {
-                                    addr.address
-                                  }
-                                  , {addr.city},{' '}
-                                  {
-                                    addr.province
-                                  }{' '}
-                                  {
-                                    addr.postalCode
-                                  }
-                                </p>
-                              </div>
-
-                              <button
-                                onClick={() =>
-                                  deleteAddress(
-                                    addr.id
-                                  )
-                                }
-                                className="p-2 rounded-xl text-red-500 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        )
+        {addresses.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="text-6xl mb-4">📍</div>
+            <h3 className="text-xl font-bold text-gray-700">Belum Ada Alamat</h3>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {addresses.map((addr: Address) => (
+              <div
+                key={addr.id}
+                className={`rounded-3xl border p-5 transition-all ${
+                  addr.isDefault ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-blue-200'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-white border border-gray-200 text-gray-700 text-[10px] uppercase tracking-wider px-3 py-1 rounded-full font-bold">
+                        {addr.label}
+                      </span>
+                      {addr.isDefault && (
+                        <span className="bg-blue-600 text-white text-[10px] uppercase tracking-wider px-3 py-1 rounded-full font-bold">
+                          Utama
+                        </span>
                       )}
                     </div>
-                  )}
+                    <h4 className="font-bold text-gray-800">{addr.recipientName}</h4>
+                    <p className="text-sm text-gray-500">{addr.phone}</p>
+                    <p className="text-sm text-gray-600">
+                      {addr.address}, {addr.city}, {addr.province} {addr.postalCode}
+                    </p>
+                    
+                    {/* TOMBOL CEPAT JADIKAN UTAMA */}
+                    {!addr.isDefault && (
+                      <button
+                        onClick={() => updateAddress(addr.id, { isDefault: true })}
+                        className="mt-2 text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                      >
+                        Set Sebagai Utama
+                      </button>
+                    )}
+                  </div>
 
-                  {/* Add Form */}
-                  {showAddAddr && (
-                    <div className="mt-8 border border-gray-200 rounded-3xl p-6">
-                      <h4 className="text-xl font-bold text-gray-800 mb-5">
-                        Tambah Alamat
-                      </h4>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {[
-                          'recipientName',
-                          'phone',
-                          'address',
-                          'city',
-                          'province',
-                          'postalCode',
-                        ].map((field) => (
-                          <input
-                            key={field}
-                            type="text"
-                            placeholder={
-                              field
-                            }
-                            value={
-                              (
-                                addrForm as any
-                              )[field] ||
-                              ''
-                            }
-                            onChange={(
-                              e
-                            ) =>
-                              setAddrForm(
-                                (
-                                  prev
-                                ) => ({
-                                  ...prev,
-                                  [field]:
-                                    e
-                                      .target
-                                      .value,
-                                })
-                              )
-                            }
-                            className="w-full px-4 py-3 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        ))}
-                      </div>
-
-                      <div className="flex gap-3 mt-5">
-                        <button
-                          onClick={() =>
-                            setShowAddAddr(
-                              false
-                            )
-                          }
-                          className="flex-1 border border-gray-200 py-3 rounded-2xl hover:bg-gray-50"
-                        >
-                          Batal
-                        </button>
-
-                        <button
-                          onClick={
-                            handleAddAddress
-                          }
-                          className="flex-1 bg-blue-600 text-white py-3 rounded-2xl hover:bg-blue-700"
-                        >
-                          Simpan
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEditAddr(addr)}
+                      className="p-2.5 rounded-xl text-blue-600 hover:bg-blue-100 transition-colors"
+                    >
+                      <Edit3 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAddr(addr.id)}
+                      className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="flex items-center gap-4 mb-8">
+          <button onClick={resetAddrForm} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <X className="w-6 h-6 text-gray-400" />
+          </button>
+          <h4 className="text-2xl font-black text-gray-800">
+            {isEditingAddr ? 'Edit Alamat' : 'Tambah Alamat Baru'}
+          </h4>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {[
+            { key: 'recipientName', label: 'Nama Penerima', placeholder: 'Budi Santoso' },
+            { key: 'phone', label: 'Nomor Telepon', placeholder: '0812xxxx' },
+            { key: 'label', label: 'Label Alamat (e.g. Rumah)', placeholder: 'Rumah' },
+            { key: 'city', label: 'Kota', placeholder: 'Jakarta Selatan' },
+            { key: 'province', label: 'Provinsi', placeholder: 'DKI Jakarta' },
+            { key: 'postalCode', label: 'Kode Pos', placeholder: '12345' },
+          ].map((field) => (
+            <div key={field.key} className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-gray-700 ml-1">{field.label}</label>
+              <input
+                type="text"
+                placeholder={field.placeholder}
+                value={(addrForm as any)[field.key] || ''}
+                onChange={(e) => setAddrForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                className="w-full px-5 py-3.5 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+              />
+            </div>
+          ))}
+          
+          <div className="md:col-span-2 flex flex-col gap-2">
+            <label className="text-sm font-bold text-gray-700 ml-1">Alamat Lengkap</label>
+            <textarea
+              rows={3}
+              placeholder="Jl. Nama Jalan No. 123..."
+              value={addrForm.address || ''}
+              onChange={(e) => setAddrForm((prev) => ({ ...prev, address: e.target.value }))}
+              className="w-full px-5 py-3.5 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+            />
+          </div>
+
+          {/* CHECKBOX JADIKAN UTAMA DI DALAM FORM */}
+          <div className="md:col-span-2 flex items-center gap-3 p-4 bg-gray-50 rounded-2xl mt-2 cursor-pointer hover:bg-gray-100 transition-colors"
+               onClick={() => setAddrForm(prev => ({ ...prev, isDefault: !prev.isDefault }))}>
+            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${addrForm.isDefault ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+              {addrForm.isDefault && <Check className="w-4 h-4 text-white" />}
+            </div>
+            <span className="text-sm font-bold text-gray-700">Jadikan sebagai alamat utama</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 mt-10">
+          <button onClick={resetAddrForm} className="flex-1 order-2 md:order-1 border border-gray-200 text-gray-600 py-4 rounded-2xl font-bold hover:bg-gray-50">
+            Batal
+          </button>
+          <button onClick={handleAddOrUpdateAddress} className="flex-1 order-1 md:order-2 bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
+            <Check className="w-5 h-5" />
+            {isEditingAddr ? 'Simpan Perubahan' : 'Simpan Alamat'}
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
               {/* SECURITY TAB */}
               {activeTab === 'security' && (

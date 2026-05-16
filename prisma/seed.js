@@ -37,7 +37,7 @@ async function main() {
       id: 'prod1', name: 'SGM Bunda Susu Ibu Hamil Vanilla 400g', slug: 'sgm-bunda-vanilla-400g',
       categoryId: 'cat1', price: 85000, originalPrice: 95000,
       stock: 50, rating: 4.8, reviewCount: 234, soldCount: 1250, weight: 400,
-      image: '/images/sgm-bunda-vanilla-400g.jpg', bgColor: 'bg-blue-100',
+      image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956282/sgm_c47k0n.webp', bgColor: 'bg-blue-100',
       description: 'SGM Bunda adalah susu khusus untuk ibu hamil dan menyusui...',
       ingredients: 'Susu skim, gula, minyak nabati, DHA, AA...',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -46,7 +46,7 @@ async function main() {
       id: 'prod2', name: 'Enfagrow A+ Three 1-3 Tahun 800g', slug: 'enfagrow-a-plus-three-800g',
       categoryId: 'cat1', price: 285000, originalPrice: 320000,
       stock: 35, rating: 4.9, reviewCount: 412, soldCount: 2100, weight: 800,
-      image: '/images/enfagrow-a-plus-three-800g.jpg', bgColor: 'bg-sky-100',
+      image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956272/enfagrow_xubgpu.webp', bgColor: 'bg-sky-100',
       description: 'Enfagrow A+ Three adalah susu pertumbuhan untuk anak usia 1-3 tahun...',
       ingredients: 'Skim milk, vegetable oil, lactose, MFGM, DHA, AA...',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -54,7 +54,7 @@ async function main() {
    {
       id: 'prod3', name: 'Bebelac 3 Susu Pertumbuhan Madu 900g', slug: 'bebelac-3-madu-900g',
       categoryId: 'cat1', price: 195000, originalPrice: 220000, stock: 42, rating: 4.7, 
-      reviewCount: 315, soldCount: 1650, weight: 900, image: '/images/bebelac-3-madu-900g.jpg', bgColor: 'bg-amber-100',
+      reviewCount: 315, soldCount: 1650, weight: 900, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956255/bebelac_bebelac_3_madu_susu_formula_-1000_g-box-_full03_s6q3u6mb_pmqo9g.webp', bgColor: 'bg-amber-100',
       description: 'Bebelac 3 hadir dengan rasa madu yang disukai anak. Mengandung Prebiotik GOS yang mendukung sistem imun.',
       ingredients: 'Susu skim, laktosa, minyak nabati, GOS, Vitamin D, Kalsium, Zat Besi',
       isNew: false, isBestSeller: true, isFeatured: false, isActive: true,
@@ -62,7 +62,7 @@ async function main() {
     {
       id: 'prod4', name: 'Frisian Flag 123 Jelajah Madu 900g', slug: 'frisian-flag-123-madu-900g',
       categoryId: 'cat1', price: 175000, originalPrice: 195000, stock: 60, rating: 4.6, 
-      reviewCount: 287, soldCount: 1420, weight: 900, image: '/images/frisian-flag-123-madu-900g.jpg', bgColor: 'bg-blue-100',
+      reviewCount: 287, soldCount: 1420, weight: 900, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956271/frisianflag_ltisdt.jpg', bgColor: 'bg-blue-100',
       description: 'Frisian Flag 123 Jelajah adalah susu pertumbuhan lengkap untuk anak 1-3 tahun. Mengandung Trigold.',
       ingredients: 'Susu skim, laktosa, DHA, Lutein, Kolin, Vitamin D, Kalsium',
       isNew: false, isBestSeller: false, isFeatured: true, isActive: true,
@@ -70,7 +70,7 @@ async function main() {
     {
       id: 'prod5', name: 'S-26 Procal Gold Susu Formula 900g', slug: 's26-procal-gold-900g',
       categoryId: 'cat1', price: 320000, originalPrice: 350000, stock: 25, rating: 4.8, 
-      reviewCount: 198, soldCount: 890, weight: 900, image: '/images/s26-procal-gold-900g.jpg', bgColor: 'bg-yellow-100',
+      reviewCount: 198, soldCount: 890, weight: 900, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956271/procal_taoec3.jpg', bgColor: 'bg-yellow-100',
       description: 'S-26 Procal Gold adalah susu formula premium untuk anak 3-12 tahun. Mengandung Procalbiotic.',
       ingredients: 'Susu skim, whey protein, DHA, Procalbiotic, Kalsium, Fosfor',
       isNew: true, isBestSeller: false, isFeatured: true, isActive: true,
@@ -78,7 +78,7 @@ async function main() {
     {
       id: 'prod6', name: 'Morinaga Chil Kid Rasa Madu 800g', slug: 'morinaga-chil-kid-madu-800g',
       categoryId: 'cat1', price: 245000, originalPrice: 270000, stock: 30, rating: 4.7, 
-      reviewCount: 156, soldCount: 780, weight: 800, image: '/images/morinaga-chil-kid-madu-800g.jpg', bgColor: 'bg-amber-50',
+      reviewCount: 156, soldCount: 780, weight: 800, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956246/morinaga_morinaga-chil-kid-reguler-madu-susu-formula--800-g-_full02_aiveay.webp', bgColor: 'bg-amber-50',
       description: 'Morinaga Chil Kid mengandung BifidusBB12 yang terbukti klinis mendukung sistem imun.',
       ingredients: 'Susu skim, BifidusBB12, DHA, Kolin, Vitamin A, C, D, E',
       isNew: false, isBestSeller: false, isFeatured: false, isActive: true,
@@ -86,7 +86,7 @@ async function main() {
     {
       id: 'prod7', name: 'Promina Bubur Bayi Tim Ayam 120g', slug: 'promina-bubur-ayam-120g',
       categoryId: 'cat2', price: 18500, originalPrice: 22000, stock: 100, rating: 4.5, 
-      reviewCount: 423, soldCount: 3200, weight: 120, image: '/images/promina-bubur-ayam-120g.jpg', bgColor: 'bg-orange-100',
+      reviewCount: 423, soldCount: 3200, weight: 120, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956244/promina_promina_bubur_bayi_6-_tim_ayam_jamur_120g_full02_r7w6feca_ihrzpp.webp', bgColor: 'bg-orange-100',
       description: 'Promina Bubur Bayi Tim Ayam adalah makanan bayi siap saji untuk usia 8+ bulan.',
       ingredients: 'Tepung beras, ayam, wortel, bayam, susu skim, minyak nabati',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -94,7 +94,7 @@ async function main() {
     {
       id: 'prod8', name: 'Milna Biskuit Bayi Original 6+ Bulan 130g', slug: 'milna-biskuit-bayi-130g',
       categoryId: 'cat2', price: 26000, originalPrice: 30000, stock: 80, rating: 4.6, 
-      reviewCount: 312, soldCount: 2400, weight: 130, image: '/images/milna-biskuit-bayi-130g.jpg', bgColor: 'bg-yellow-50',
+      reviewCount: 312, soldCount: 2400, weight: 130, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956245/milnabiskui_a3pbmc.webp', bgColor: 'bg-yellow-50',
       description: 'Milna Biskuit Bayi adalah snack sehat untuk bayi usia 6+ bulan. Teksturnya mudah larut.',
       ingredients: 'Tepung gandum, susu, gula, DHA, Vitamin B kompleks, Kalsium',
       isNew: false, isBestSeller: true, isFeatured: false, isActive: true,
@@ -102,7 +102,7 @@ async function main() {
     {
       id: 'prod9', name: 'Heinz Chicken Rice Cereal 125g', slug: 'heinz-chicken-rice-cereal-125g',
       categoryId: 'cat2', price: 35000, originalPrice: 42000, stock: 45, rating: 4.4, 
-      reviewCount: 187, soldCount: 1100, weight: 125, image: '/images/heinz-chicken-rice-cereal-125g.jpg', bgColor: 'bg-red-50',
+      reviewCount: 187, soldCount: 1100, weight: 125, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956247/heinzchicken_r4krye.png', bgColor: 'bg-red-50',
       description: 'Heinz Chicken Rice Cereal adalah MPASI impor berkualitas untuk bayi 6+ bulan.',
       ingredients: 'Tepung beras, ayam asli, Vitamin C, Zat Besi, Kalsium',
       isNew: false, isBestSeller: false, isFeatured: true, isActive: true,
@@ -110,7 +110,7 @@ async function main() {
     {
       id: 'prod10', name: 'SUN Rice Cereal Sari Buah 120g', slug: 'sun-rice-cereal-sari-buah-120g',
       categoryId: 'cat2', price: 28000, originalPrice: 32000, stock: 65, rating: 4.5, 
-      reviewCount: 245, soldCount: 1560, weight: 120, image: '/images/sun-rice-cereal-sari-buah-120g.jpg', bgColor: 'bg-pink-50',
+      reviewCount: 245, soldCount: 1560, weight: 120, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956284/sun_b52ft9.jpg', bgColor: 'bg-pink-50',
       description: 'SUN Rice Cereal Sari Buah adalah sereal bayi dengan sari buah alami.',
       ingredients: 'Tepung beras, sari buah, Zat Besi, Vitamin C, Asam Folat, Zinc',
       isNew: true, isBestSeller: false, isFeatured: false, isActive: true,
@@ -118,7 +118,7 @@ async function main() {
     {
       id: 'prod11', name: 'Vidoran Xmart 1+ Vanila 370g', slug: 'vidoran-xmart-1-vanilla-370g',
       categoryId: 'cat3', price: 125000, originalPrice: 140000, stock: 38, rating: 4.7, 
-      reviewCount: 198, soldCount: 945, weight: 370, image: '/images/vidoran-xmart-1-vanilla-370g.jpg', bgColor: 'bg-green-100',
+      reviewCount: 198, soldCount: 945, weight: 370, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956280/vidoran_p8gqdn.webp', bgColor: 'bg-green-100',
       description: 'Vidoran Xmart 1+ adalah suplemen nutrisi untuk anak 1-3 tahun. Mengandung Lysine.',
       ingredients: 'Susu skim, Lysine, DHA, Taurin, 27 Vitamin & Mineral',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -126,7 +126,7 @@ async function main() {
     {
       id: 'prod12', name: 'Curcuma Plus Rasa Jeruk 100ml', slug: 'curcuma-plus-jeruk-100ml',
       categoryId: 'cat3', price: 28000, originalPrice: 32000, stock: 120, rating: 4.6, 
-      reviewCount: 567, soldCount: 4200, weight: 100, image: '/images/curcuma-plus-jeruk-100ml.jpg', bgColor: 'bg-orange-50',
+      reviewCount: 567, soldCount: 4200, weight: 100, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956279/curcuma_dlbyeu.webp', bgColor: 'bg-orange-50',
       description: 'Membantu meningkatkan nafsu makan dan daya tahan tubuh anak.',
       ingredients: 'Ekstrak Temulawak, Madu, Vitamin B, Vitamin C, Vitamin E, Zinc',
       isNew: false, isBestSeller: true, isFeatured: false, isActive: true,
@@ -134,7 +134,7 @@ async function main() {
     {
       id: 'prod13', name: 'Pampers Premium Care Newborn 46 pcs', slug: 'pampers-premium-care-newborn-46',
       categoryId: 'cat4', price: 95000, originalPrice: 110000, stock: 200, rating: 4.8, 
-      reviewCount: 892, soldCount: 5600, weight: 800, image: '/images/pampers-premium-care-newborn-46.jpg', bgColor: 'bg-blue-50',
+      reviewCount: 892, soldCount: 5600, weight: 800, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956246/pampersbaby_lp0bnb.png', bgColor: 'bg-blue-50',
       description: 'Popok bayi premium dengan teknologi air dry. Menjaga kulit tetap kering 12 jam.',
       ingredients: 'Polimer absorbent, selulosa, polyethylene, polypropylene',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -142,7 +142,7 @@ async function main() {
     {
       id: 'prod14', name: "Johnson's Baby Lotion 200ml", slug: 'johnsons-baby-lotion-200ml',
       categoryId: 'cat4', price: 38000, originalPrice: 45000, stock: 85, rating: 4.7, 
-      reviewCount: 634, soldCount: 3400, weight: 200, image: '/images/johnsons-baby-lotion-200ml.jpg', bgColor: 'bg-yellow-50',
+      reviewCount: 634, soldCount: 3400, weight: 200, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956279/johnsons_lt0xvr.webp', bgColor: 'bg-yellow-50',
       description: 'Losion bayi yang lembut dan ringan dengan pH 5.5 yang seimbang.',
       ingredients: 'Water, Glycerin, Mineral Oil, Almond Oil, Vitamin E',
       isNew: false, isBestSeller: true, isFeatured: false, isActive: true,
@@ -150,7 +150,7 @@ async function main() {
     {
       id: 'prod15', name: 'Mustela Hydra Bebe Body Lotion 300ml', slug: 'mustela-hydra-bebe-300ml',
       categoryId: 'cat4', price: 145000, originalPrice: 165000, stock: 28, rating: 4.9, 
-      reviewCount: 234, soldCount: 780, weight: 300, image: '/images/mustela-hydra-bebe-300ml.jpg', bgColor: 'bg-teal-50',
+      reviewCount: 234, soldCount: 780, weight: 300, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956271/mustela_faa7yc.webp', bgColor: 'bg-teal-50',
       description: 'Pelembab badan bayi premium dari Perancis mengandung Avocado Perseose.',
       ingredients: 'Avocado Perseose, Glycerin, Water, Aloe Vera, Chamomile Extract',
       isNew: false, isBestSeller: false, isFeatured: true, isActive: true,
@@ -158,7 +158,7 @@ async function main() {
     {
       id: 'prod16', name: 'Pigeon Spout Cup 200ml', slug: 'pigeon-spout-cup-200ml',
       categoryId: 'cat5', price: 65000, originalPrice: 75000, stock: 55, rating: 4.6, 
-      reviewCount: 312, soldCount: 1800, weight: 150, image: '/images/pigeon-spout-cup-200ml.jpg', bgColor: 'bg-purple-100',
+      reviewCount: 312, soldCount: 1800, weight: 150, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956247/pigeonspout_uyjzyu.png', bgColor: 'bg-purple-100',
       description: 'Training cup untuk bayi belajar minum dari cangkir dengan sedotan lunak.',
       ingredients: 'PP BPA Free, Silikon food grade',
       isNew: false, isBestSeller: true, isFeatured: true, isActive: true,
@@ -166,7 +166,7 @@ async function main() {
     {
       id: 'prod17', name: 'Chicco Baby Sense Spoon Set 4 pcs', slug: 'chicco-baby-sense-spoon-4pcs',
       categoryId: 'cat5', price: 85000, originalPrice: 95000, stock: 40, rating: 4.7, 
-      reviewCount: 178, soldCount: 920, weight: 100, image: '/images/chicco-baby-sense-spoon-4pcs.jpg', bgColor: 'bg-indigo-50',
+      reviewCount: 178, soldCount: 920, weight: 100, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956242/chiccobaby_qgotsd.jpg', bgColor: 'bg-indigo-50',
       description: 'Set sendok bayi ergonomis. Desain gagang tebal mudah digenggam.',
       ingredients: 'PP BPA Free, Silikon food grade',
       isNew: true, isBestSeller: false, isFeatured: false, isActive: true,
@@ -174,7 +174,7 @@ async function main() {
     {
       id: 'prod18', name: 'Fisher-Price Kick & Play Piano Gym', slug: 'fisher-price-kick-piano-gym',
       categoryId: 'cat6', price: 485000, originalPrice: 550000, stock: 18, rating: 4.9, 
-      reviewCount: 145, soldCount: 423, weight: 1200, image: '/images/fisher-price-kick-piano-gym.jpg', bgColor: 'bg-yellow-100',
+      reviewCount: 145, soldCount: 423, weight: 1200, image: 'https://res.cloudinary.com/dwjuyd3xj/image/upload/v1778956272/fish-kick_maeb2g.png', bgColor: 'bg-yellow-100',
       description: 'Gym bayi interaktif yang merangsang perkembangan sensori dan motorik.',
       ingredients: 'ABS Plastic, Polyester, BPA Free',
       isNew: true, isBestSeller: false, isFeatured: true, isActive: true,

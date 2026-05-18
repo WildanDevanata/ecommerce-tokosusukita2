@@ -24,7 +24,7 @@ export interface Order {
   id: string;
   orderNumber: string;
   userId?: string;
-  userName: string; // Opsional: pastikan di API join dengan user.name
+  userName: string; 
   totalAmount: number;
   shippingCost: number;
   paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED';
@@ -36,7 +36,7 @@ export interface Order {
   trackingNumber?: string;
   courier?: string;
 
-  // --- DISESUAIKAN DENGAN PRISMA SCHEMA (FLAT FIELDS) ---
+  // --- PRISMA FLAT FIELDS ---
   shippingRecipient: string;
   shippingPhone: string;
   shippingAddress: string;
@@ -92,12 +92,9 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
-
   role: 'ADMIN' | 'CUSTOMER';
-
   isActive?: boolean;
   createdAt?: string;
-
   addresses?: Address[];
 }
 
@@ -115,262 +112,136 @@ export interface Address {
 
 // ================= CONTEXT TYPE =================
 
-interface AppContextType {
+export interface AppContextType {
   products: Product[];
   categories: Category[];
   cart: CartItem[];
-  updateAddress: (id: string, address: Partial<Address>) => Promise<void>;
   currentUser: User | null;
   isLoggedIn: boolean;
-
   orders: Order[];
   users: User[];
-
   bankAccounts: BankAccount[];
-
   loading: boolean;
 
+  // Fetching & Refreshers
   fetchBankAccounts: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
 
-  setProducts: React.Dispatch<
-    React.SetStateAction<Product[]>
-  >;
+  // State Setters (Dipakai jika butuh manipulasi manual dari luar)
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 
-  setCategories: React.Dispatch<
-    React.SetStateAction<Category[]>
-  >;
+  // Profile & Address Actions
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  addAddress: (address: Address) => Promise<void>;
+  updateAddress: (id: string, address: Partial<Address>) => Promise<void>;
+  deleteAddress: (id: string) => Promise<void>;
 
-  setUsers: React.Dispatch<
-    React.SetStateAction<User[]>
-  >;
+  // Category Actions
+  addCategory: (category: Category) => void;
+  updateCategory: (id: string, data: Partial<Category>) => void;
+  deleteCategory: (id: string) => void;
 
-updateProfile: (
-  data: Partial<User>
-) => Promise<void>;
+  // Cart Actions
+  addToCart: (item: Product) => void;
+  removeFromCart: (id: string) => void;
+  updateCartQty: (id: string, qty: number) => void;
 
-addAddress: (
-  address: Address
-) => Promise<void>;
-
-deleteAddress: (
- id: string
-) => Promise<void>;
-
-  addCategory: (
-    category: Category
-  ) => void;
-
-  updateCategory: (
-    id: string,
-    data: Partial<Category>
-  ) => void;
-
-  deleteCategory: (
-    id: string
-  ) => void;
-
-  addToCart: (
-    item: Product
-  ) => void;
-
-  removeFromCart: (
-    id: string
-  ) => void;
-
-  uploadPaymentProof: (
-  orderId: string,
-  proofUrl: string,
-  paymentMethod: string
-) => Promise<void>;
-
-cancelOrder: (
-  orderId: string
-) => void;
-
-  updateCartQty: (
-    id: string,
-    qty: number
-  ) => void;
-
-  login: (
-    user: User
-  ) => void;
-
+  // Auth Actions
+  login: (user: User) => void;
   logout: () => void;
 
-  updateOrderPaymentStatus: (
-    orderId: string,
-    status: Order['paymentStatus']
-  ) => void;
-
-  updateOrderStatus: (
-    orderId: string,
-    status: Order['status']
-  ) => void;
+  // Order Actions
+  uploadPaymentProof: (orderId: string, proofUrl: string, paymentMethod: string) => Promise<void>;
+  cancelOrder: (orderId: string) => void;
+  updateOrderPaymentStatus: (orderId: string, status: Order['paymentStatus']) => void;
+  updateOrderStatus: (orderId: string, status: Order['status']) => void;
 }
 
-const AppContext =
-  createContext<AppContextType | undefined>(
-    undefined
-  );
+// Tambahkan eksport pada AppContext agar bisa diakses jika dibutuhkan secara langsung
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // ================= PROVIDER =================
 
-export const AppProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
-
+export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   // ================= STATES =================
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [categories, setCategories] =
-    useState<Category[]>([]);
-
-  const [products, setProducts] =
-    useState<Product[]>([]);
-
-  const [cart, setCart] =
-    useState<CartItem[]>([]);
-
-  const [currentUser, setCurrentUser] =
-    useState<User | null>(null);
-
-  const [isLoggedIn, setIsLoggedIn] =
-    useState(false);
-
-  const [orders, setOrders] =
-    useState<Order[]>([]);
-
-  const [users, setUsers] =
-    useState<User[]>([]);
-
-  const [bankAccounts, setBankAccounts] =
-    useState<BankAccount[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  // ================= FETCH =================
-  const refreshProducts =
-  async () => {
+  // ================= FETCH FUNCTIONS =================
+  const refreshProducts = async () => {
     try {
-      const res = await fetch(
-        '/api/products'
-      );
-
-      if (!res.ok) {
-        throw new Error(
-          'Gagal mengambil products'
-        );
-      }
-
-      const data =
-        await res.json();
-
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Gagal mengambil products');
+      const data = await res.json();
       setProducts(data);
     } catch (error) {
       console.error(error);
-
       setProducts([]);
     }
   };
-  const fetchBankAccounts =
-    async () => {
-      try {
-        setLoading(true);
 
-        const res = await fetch(
-          '/api/bank-accounts'
-        );
+  const fetchBankAccounts = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/bank-accounts');
+      if (!res.ok) throw new Error('Gagal mengambil bank account');
+      const data = await res.json();
+      setBankAccounts(data);
+    } catch (error) {
+      console.error(error);
+      setBankAccounts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (!res.ok) {
-          throw new Error(
-            'Gagal mengambil bank account'
-          );
-        }
+  const refreshCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      if (!res.ok) throw new Error('Gagal mengambil kategori');
+      const data = await res.json();
+      setCategories(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-        const data = await res.json();
+  const refreshOrders = async () => {
+    try {
+      const res = await fetch('/api/orders');
+      if (!res.ok) throw new Error('Gagal mengambil orders');
+      const data = await res.json();
+      setOrders(data);
+    } catch (error) {
+      console.error(error);
+      setOrders([]);
+    }
+  };
 
-        setBankAccounts(data);
-      } catch (error) {
-        console.error(error);
-        setBankAccounts([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  const refreshCategories =
-    async () => {
-      try {
-        const res = await fetch(
-          '/api/categories'
-        );
-
-        if (!res.ok) {
-          throw new Error(
-            'Gagal mengambil kategori'
-          );
-        }
-
-        const data = await res.json();
-
-        setCategories(data);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-  const refreshOrders =
-    async () => {
-      try {
-        const res = await fetch(
-          '/api/orders'
-        );
-
-        if (!res.ok) {
-          throw new Error(
-            'Gagal mengambil orders'
-          );
-        }
-
-        const data = await res.json();
-
-        setOrders(data);
-      } catch (error) {
-        console.error(error);
-        setOrders([]);
-      }
-    };
-
-  const refreshUsers =
-    async () => {
-      try {
-        const res = await fetch(
-          '/api/users'
-        );
-
-        if (!res.ok) {
-          throw new Error(
-            'Gagal mengambil users'
-          );
-        }
-
-        const data = await res.json();
-
-        setUsers(data);
-      } catch (error) {
-        console.error(error);
-        setUsers([]);
-      }
-    };
+  const refreshUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) throw new Error('Gagal mengambil users');
+      const data = await res.json();
+      setUsers(data);
+    } catch (error) {
+      console.error(error);
+      setUsers([]);
+    }
+  };
 
   // ================= INITIAL LOAD =================
-
   useEffect(() => {
     refreshCategories();
     refreshOrders();
@@ -378,435 +249,244 @@ export const AppProvider = ({
     fetchBankAccounts();
     refreshProducts();
 
-    const savedUser =
-      localStorage.getItem('user');
-
-    const savedCart =
-      localStorage.getItem('cart');
+    const savedUser = localStorage.getItem('user');
+    const savedCart = localStorage.getItem('cart');
 
     if (savedUser) {
-      setCurrentUser(
-        JSON.parse(savedUser)
-      );
-
+      setCurrentUser(JSON.parse(savedUser));
       setIsLoggedIn(true);
     }
-
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
   }, []);
 
-  // ================= SAVE CART =================
-
+  // ================= SAVE CART TO LOCALSTORAGE =================
   useEffect(() => {
-    localStorage.setItem(
-      'cart',
-      JSON.stringify(cart)
-    );
+    localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
   // ================= ACTIONS =================
 
-  const addCategory = (
-    c: Category
-  ) => {
-    setCategories((prev) => [
-      c,
-      ...prev,
-    ]);
+  // --- Category Actions ---
+  const addCategory = (c: Category) => {
+    setCategories((prev) => [c, ...prev]);
   };
 
-  const updateCategory = (
-    id: string,
-    data: Partial<Category>
-  ) => {
+  const updateCategory = (id: string, data: Partial<Category>) => {
     setCategories((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, ...data }
-          : c
-      )
+      prev.map((c) => (c.id === id ? { ...c, ...data } : c))
     );
   };
 
-  const deleteCategory = (
-    id: string
-  ) => {
-    setCategories((prev) =>
-      prev.filter((c) => c.id !== id)
-    );
+  const deleteCategory = (id: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-const updateProfile = async (
-  data: Partial<User>
-) => {
-  if (!currentUser) return;
-
-  try {
-    const res = await fetch(
-      `/api/users/${currentUser.id}`,
-      {
+  // --- Profile & Address Actions ---
+  const updateProfile = async (data: Partial<User>) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}`, {
         method: 'PATCH',
-
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
-
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
-      }
-    );
+      });
 
-    if (!res.ok) {
-      const err =
-        await res.text();
-
-      console.log(err);
-
-      throw new Error(
-        'Gagal update profile'
-      );
+      if (!res.ok) throw new Error('Gagal update profile');
+      const updatedUser = await res.json();
+      setCurrentUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error(error);
     }
+  };
 
-    const updatedUser =
-      await res.json();
-
-    setCurrentUser(updatedUser);
-
-    localStorage.setItem(
-      'user',
-      JSON.stringify(updatedUser)
-    );
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-const addAddress = async (
-  address: Address
-) => {
-  if (!currentUser) return;
-
-  try {
-    const res = await fetch(
-      `/api/users/${currentUser.id}/addresses`,
-      {
+  const addAddress = async (address: Address) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}/addresses`, {
         method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(address),
-      }
-    );
+      });
 
-    if (!res.ok) {
-      throw new Error(
-        'Gagal tambah alamat'
-      );
+      if (!res.ok) throw new Error('Gagal tambah alamat');
+      const newAddress = await res.json();
+
+      const updatedUser = {
+        ...currentUser,
+        addresses: [...(currentUser.addresses || []), newAddress],
+      };
+
+      setCurrentUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error(error);
     }
+  };
 
-    const newAddress =
-      await res.json();
+  const updateAddress = async (id: string, updatedData: Partial<Address>) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}/addresses/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
 
-    const updatedUser = {
-      ...currentUser,
-      addresses: [
-        ...(currentUser.addresses ||
-          []),
-        newAddress,
-      ],
-    };
+      if (!res.ok) throw new Error('Gagal memperbarui alamat di server');
+      const updatedAddressFromDb = await res.json();
 
-    setCurrentUser(updatedUser);
+      const updatedAddresses = (currentUser.addresses || []).map((addr) => {
+        if (addr.id === id) return updatedAddressFromDb;
+        if (updatedData.isDefault && addr.id !== id) {
+          return { ...addr, isDefault: false };
+        }
+        return addr;
+      });
 
-    localStorage.setItem(
-      'user',
-      JSON.stringify(updatedUser)
-    );
-  } catch (error) {
-    console.error(error);
-  }
-};
-const updateAddress = async (id: string, updatedData: Partial<Address>) => {
-  if (!currentUser) return;
-
-  try {
-    // 1. Kirim perubahan ke API
-    const res = await fetch(`/api/users/${currentUser.id}/addresses/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatedData),
-    });
-
-    if (!res.ok) {
-      throw new Error('Gagal memperbarui alamat di server');
+      const updatedUser = { ...currentUser, addresses: updatedAddresses };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error("Error updateAddress:", error);
+      alert("Gagal memperbarui alamat. Silakan periksa koneksi Anda.");
     }
+  };
 
-    const updatedAddressFromDb = await res.json();
-
-    // 2. Update State Lokal
-    const updatedAddresses = (currentUser.addresses || []).map((addr) => {
-      // Jika ini adalah alamat yang diedit
-      if (addr.id === id) {
-        return updatedAddressFromDb;
-      }
-      
-      // Jika alamat yang diedit dijadikan 'Default', 
-      // maka alamat lain secara otomatis bukan default lagi di sisi client
-      if (updatedData.isDefault && addr.id !== id) {
-        return { ...addr, isDefault: false };
-      }
-
-      return addr;
-    });
-
-    const updatedUser = {
-      ...currentUser,
-      addresses: updatedAddresses,
-    };
-
-    // 3. Simpan perubahan ke State dan LocalStorage
-    setCurrentUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-
-  } catch (error) {
-    console.error("Error updateAddress:", error);
-    alert("Gagal memperbarui alamat. Silakan periksa koneksi Anda.");
-  }
-};
-const deleteAddress = async (
-  id: string
-) => {
-  if (!currentUser) return;
-
-  try {
-    const res = await fetch(
-      `/api/users/${currentUser.id}/addresses/${id}`,
-      {
+  const deleteAddress = async (id: string) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}/addresses/${id}`, {
         method: 'DELETE',
-      }
-    );
+      });
 
-    if (!res.ok) {
-      throw new Error(
-        'Gagal hapus alamat'
-      );
+      if (!res.ok) throw new Error('Gagal hapus alamat');
+
+      const updatedUser = {
+        ...currentUser,
+        addresses: currentUser.addresses?.filter((addr) => addr.id !== id) || [],
+      };
+
+      setCurrentUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error(error);
     }
-
-    const updatedUser = {
-      ...currentUser,
-      addresses:
-        currentUser.addresses?.filter(
-          (addr) => addr.id !== id
-        ) || [],
-    };
-
-    setCurrentUser(updatedUser);
-
-    localStorage.setItem(
-      'user',
-      JSON.stringify(updatedUser)
-    );
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-  const updateOrderPaymentStatus = (
-    orderId: string,
-    status: Order['paymentStatus']
-  ) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              paymentStatus: status,
-            }
-          : o
-      )
-    );
   };
 
-  const updateOrderStatus = (
-    orderId: string,
-    status: Order['status']
-  ) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status }
-          : o
-      )
-    );
-  };
-
-  const addToCart = (
-    item: Product
-  ) => {
+  // --- Cart Actions ---
+  const addToCart = (item: Product) => {
     setCart((prev) => {
-      const exist = prev.find(
-        (i) => i.id === item.id
-      );
-
+      const exist = prev.find((i) => i.id === item.id);
       if (exist) {
         return prev.map((i) =>
-          i.id === item.id
-            ? {
-                ...i,
-                quantity:
-                  i.quantity + 1,
-              }
-            : i
+          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-
-      return [
-        ...prev,
-        {
-          ...item,
-          quantity: 1,
-        },
-      ];
+      return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (
-    id: string
-  ) => {
-    setCart((prev) =>
-      prev.filter(
-        (item) => item.id !== id
-      )
-    );
+  const removeFromCart = (id: string) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const uploadPaymentProof = async (
-  orderId: string,
-  proofUrl: string,
-  paymentMethod: string
-) => {
-  try {
-    // UBAH INI: Hapus '/payment' di ujung URL
-    const res = await fetch(`/api/orders/${orderId}`, { 
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        paymentProofUrl: proofUrl, 
-        paymentMethod, // Kirim ini agar backend bisa mengupdate metode pembayaran
-        paymentStatus: 'WAITING_VERIFICATION'
-      }),
-    });
-
-    if (!res.ok) throw new Error('Gagal upload bukti');
-
-    // Update State Lokal setelah API berhasil
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              paymentProofUrl: proofUrl,
-              paymentMethod,
-              paymentStatus: 'WAITING_VERIFICATION',
-            }
-          : order
-      )
-    );
-  } catch (error) {
-    console.error(error);
-    alert("Gagal menyimpan bukti pembayaran ke server.");
-  }
-};
-
-const cancelOrder = (
-  orderId: string
-) => {
-  setOrders((prev) =>
-    prev.map((order) =>
-      order.id === orderId
-        ? {
-            ...order,
-            status: 'CANCELLED',
-          }
-        : order
-    )
-  );
-};
-  // ✅ PINDAHKAN KE DALAM AppProvider
-  const updateCartQty = (
-    id: string,
-    qty: number
-  ) => {
+  const updateCartQty = (id: string, qty: number) => {
     if (qty <= 0) {
       removeFromCart(id);
       return;
     }
-
     setCart((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantity: qty,
-            }
-          : item
+      prev.map((item) => (item.id === id ? { ...item, quantity: qty } : item))
+    );
+  };
+
+  // --- Auth Actions ---
+  const login = (user: User) => {
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+    localStorage.setItem('user', JSON.stringify(user));
+    document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    localStorage.removeItem('user');
+    localStorage.removeItem('cart');
+    document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    setCart([]);
+  };
+
+  // --- Order Actions ---
+  const uploadPaymentProof = async (orderId: string, proofUrl: string, paymentMethod: string) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentProofUrl: proofUrl,
+          paymentMethod,
+          paymentStatus: 'WAITING_VERIFICATION',
+        }),
+      });
+
+      if (!res.ok) throw new Error('Gagal upload bukti');
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                paymentProofUrl: proofUrl,
+                paymentMethod,
+                paymentStatus: 'WAITING_VERIFICATION',
+              }
+            : order
+        )
+      );
+    } catch (error) {
+      console.error(error);
+      alert("Gagal menyimpan bukti pembayaran ke server.");
+    }
+  };
+
+  const cancelOrder = (orderId: string) => {
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === orderId ? { ...order, status: 'CANCELLED' } : order
       )
     );
   };
 
-// Di dalam AppContext.tsx (Fungsi Login)
-const login = (user: User) => {
-  setCurrentUser(user);
-  setIsLoggedIn(true);
+  const updateOrderPaymentStatus = (orderId: string, status: Order['paymentStatus']) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: status } : o))
+    );
+  };
 
-  // Simpan ke LocalStorage untuk UI State
-  localStorage.setItem('user', JSON.stringify(user));
+  const updateOrderStatus = (orderId: string, status: Order['status']) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
+    );
+  };
 
-  // SIMPAN KE COOKIE UNTUK MIDDLEWARE (Kritikal!)
-  // Gunakan document.cookie jika tidak ingin install library
-  document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`; 
-};
-
-const logout = () => {
-  setCurrentUser(null);
-  setIsLoggedIn(false);
-  localStorage.removeItem('user');
-  localStorage.removeItem('cart');
-
-  // HAPUS COOKIE SAAT LOGOUT
-  document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-  
-  setCart([]);
-};
-
-  // ================= DERIVED =================
-
- const categoriesWithCount =
-  useMemo(() => {
+  // ================= DERIVED STATE =================
+  const categoriesWithCount = useMemo(() => {
     return categories.map((cat) => ({
       ...cat,
-
-      productCount:
-        products.filter(
-          (p) =>
-            p.categoryId ===
-            cat.id
-        ).length,
+      productCount: products.filter((p) => p.categoryId === cat.id).length,
     }));
   }, [categories, products]);
-  // ================= PROVIDER =================
 
+  // ================= RETURN PROVIDER =================
   return (
     <AppContext.Provider
       value={{
         products,
-        categories:
-        categoriesWithCount,
+        categories: categoriesWithCount,
         cart,
         currentUser,
         isLoggedIn,
@@ -814,34 +494,27 @@ const logout = () => {
         users,
         bankAccounts,
         loading,
-        uploadPaymentProof,
-        cancelOrder,  
-
-        setProducts,
-        setCategories,
-        setUsers,
-
-        updateProfile,
-        addAddress,
-        deleteAddress,
-        updateAddress,
+        fetchBankAccounts,
         refreshCategories,
         refreshOrders,
         refreshUsers,
-
-        fetchBankAccounts,
-
+        setProducts,
+        setCategories,
+        setUsers,
+        updateProfile,
+        addAddress,
+        updateAddress,
+        deleteAddress,
         addCategory,
         updateCategory,
         deleteCategory,
-
         addToCart,
         removeFromCart,
         updateCartQty,
-
         login,
         logout,
-
+        uploadPaymentProof,
+        cancelOrder,
         updateOrderPaymentStatus,
         updateOrderStatus,
       }}
@@ -854,14 +527,9 @@ const logout = () => {
 // ================= HOOK =================
 
 export function useApp() {
-  const context =
-    useContext(AppContext);
-
+  const context = useContext(AppContext);
   if (!context) {
-    throw new Error(
-      'useApp must be used within AppProvider'
-    );
+    throw new Error('useApp must be used within AppProvider');
   }
-
   return context;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
@@ -22,8 +22,37 @@ export default function OrderDetailPage() {
   
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  // State untuk mengelola data order yang siap tampil (gabungan Context & Fallback API)
+  const [order, setOrder] = useState<any>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [loadingFetch, setLoadingFetch] = useState(true);
 
-  const order = orders.find(o => o.id === id);
+  // 1. Sinkronisasi Hydration & Data Fetching Fallback
+  useEffect(() => {
+    setIsHydrated(true);
+
+    // Pertama, coba cari datanya di dalam global context orders
+    const foundInContext = orders.find(o => o.id === id);
+
+    if (foundInContext) {
+      setOrder(foundInContext);
+      setLoadingFetch(false);
+    } else if (id) {
+      // Jika di context tidak ketemu (karena lag router.push), ambil langsung dari API route
+      setLoadingFetch(true);
+      fetch(`/api/orders/${id}`)
+        .then((res) => {
+          if (!res.ok) throw new Error('Gagal memuat');
+          return res.json();
+        })
+        .then((data) => {
+          if (data) setOrder(data);
+        })
+        .catch((err) => console.error("Fallback fetch error:", err))
+        .finally(() => setLoadingFetch(false));
+    }
+  }, [id, orders]);
 
   // --- HELPER FUNCTIONS ---
   const formatCurrency = (val: number) => {
@@ -47,76 +76,80 @@ export default function OrderDetailPage() {
   };
 
   // --- LOGIKA UPLOAD ---
-const uploadToCloudinary = async (file: File) => {
-  // PENTING: Jangan ada spasi atau karakter aneh di sini
-  const CLOUD_NAME = "dwjuyd3xj"; 
-  const PRESET_NAME = "ml_default"; 
+  const uploadToCloudinary = async (file: File) => {
+    const CLOUD_NAME = "dwjuyd3xj"; 
+    const PRESET_NAME = "ml_default"; 
 
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', PRESET_NAME);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', PRESET_NAME);
 
-  try {
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      console.error("DEBUG CLOUDINARY ERROR:", data);
-      
-      // Jika pesannya "Unknown API key", berarti Cloudinary tidak menemukan
-      // preset bernama PRESET_NAME yang statusnya Unsigned.
-      if (data.error?.message.includes("Unknown API key")) {
-        throw new Error(`Cloudinary tidak mengenali preset "${PRESET_NAME}". Pastikan preset ini sudah dibuat sebagai 'Unsigned' di Settings > Upload.`);
+      if (!res.ok) {
+        if (data.error?.message.includes("Unknown API key")) {
+          throw new Error(`Cloudinary tidak mengenali preset "${PRESET_NAME}". Pastikan preset ini sudah dibuat sebagai 'Unsigned' di Settings > Upload.`);
+        }
+        throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
       }
-      
-      throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
-    }
 
-    return data.secure_url;
-  } catch (error: any) {
-    console.error("CATCH ERROR:", error);
-    throw error;
-  }
-};
+      return data.secure_url;
+    } catch (error: any) {
+      throw error;
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file || !order) return;
+    const file = e.target.files?.[0];
+    if (!file || !order) return;
 
-  try {
-    setUploading(true);
-    
-    // 1. Upload ke Cloudinary (Pakai fungsi yang sudah kamu tulis tadi)
-    const imageUrl = await uploadToCloudinary(file); 
-    
-    // 2. Simpan URL tersebut ke PostgreSQL via AppContext
-    // Ini akan menggunakan DATABASE_URL yang ada di .env kamu
-    await uploadPaymentProof(order.id, imageUrl, order.paymentMethod || 'BANK TRANSFER');
-    
-    alert("Bukti pembayaran berhasil dikirim!");
-    setShowUpload(false);
-  } catch (error: any) {
-    alert(error.message);
-  } finally {
-    setUploading(false);
-  }
-};
+    try {
+      setUploading(true);
+      const imageUrl = await uploadToCloudinary(file); 
+      await uploadPaymentProof(order.id, imageUrl, order.paymentMethod || 'BANK TRANSFER');
+      alert("Bukti pembayaran berhasil dikirim!");
+      setShowUpload(false);
+      
+      // Update state local agar langsung berubah tanpa reload halaman setelah upload
+      setOrder((prev: any) => prev ? { ...prev, paymentProofUrl: imageUrl } : null);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
-  if (!order) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="text-6xl mb-4">😕</div>
-        <p className="text-gray-600">Pesanan tidak ditemukan</p>
-        <Link href="/customer/orders" className="text-blue-600 hover:underline mt-2 block">
-          Kembali ke Pesanan
-        </Link>
+  // 2. Layar loading super aman: Tunggu hydration & proses fetch fallback selesai
+  if (!isHydrated || loadingFetch) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
+        <p className="text-sm text-gray-500 font-medium">Memuat rincian pesanan...</p>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // 3. Jika sudah di-fetch lewat API dan dicari di Context tapi hasil pesanan memang bernilai null/tidak ada
+  if (!order) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4">😕</div>
+          <p className="text-gray-800 font-bold">Pesanan tidak ditemukan</p>
+          <p className="text-xs text-gray-500 max-w-xs mt-1">ID pesanan salah atau rute pendaftaran database belum sinkron.</p>
+          <Link href="/customer/orders" className="text-blue-600 hover:underline mt-4 inline-block text-sm font-medium">
+            Kembali ke Pesanan
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const statusIndex = statusTimeline.indexOf(order.status);
   const activeBanks = bankAccounts?.filter(b => b.isActive && b.type === 'BANK') || [];
@@ -221,7 +254,6 @@ const uploadToCloudinary = async (file: File) => {
                 {/* Upload Section */}
                 {!order.paymentProofUrl ? (
                   <div className="mt-5 space-y-3">
-                    {/* Hidden File Input */}
                     <input 
                       type="file" 
                       id="payment-file" 
@@ -266,10 +298,18 @@ const uploadToCloudinary = async (file: File) => {
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-4">Rincian Produk</h3>
               <div className="divide-y divide-gray-50">
-                  {order.items?.map(item => (
+                  {order.items?.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 py-4">
-                      <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white`}>
-                          {item.productEmoji}
+                      <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
+                        {item.image ? (
+                          <img 
+                            src={item.image} 
+                            alt={item.productName} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span>{item.productEmoji || '🥛'}</span>
+                        )}
                       </div>
                       <div className="flex-1">
                           <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
@@ -292,23 +332,23 @@ const uploadToCloudinary = async (file: File) => {
 
               <div className="space-y-1">
                 <p className="font-bold text-gray-900">
-                  {order.shippingRecipient || (order.shippingAddress as any)?.recipientName || 'Nama Penerima'}
+                  {order.shippingRecipient || order.shippingAddress?.recipientName || 'Nama Penerima'}
                 </p>
                 <p className="text-sm text-gray-600">
-                  {order.shippingPhone || (order.shippingAddress as any)?.phone || '-'}
+                  {order.shippingPhone || order.shippingAddress?.phone || '-'}
                 </p>
 
                 <div className="pt-2 border-t border-gray-50 mt-2">
                   <p className="text-sm text-gray-700 leading-relaxed">
                     {typeof order.shippingAddress === 'string' 
                       ? order.shippingAddress 
-                      : (order.shippingAddress as any)?.address || 'Alamat tidak ditemukan'}
+                      : order.shippingAddress?.address || 'Alamat tidak ditemukan'}
                   </p>
                   <p className="text-sm text-gray-700 font-medium">
                     {[
-                      order.shippingCity || (order.shippingAddress as any)?.city,
-                      order.shippingProvince || (order.shippingAddress as any)?.province,
-                      order.shippingPostalCode || (order.shippingAddress as any)?.postalCode
+                      order.shippingCity || order.shippingAddress?.city,
+                      order.shippingProvince || order.shippingAddress?.province,
+                      order.shippingPostalCode || order.shippingAddress?.postalCode
                     ].filter(Boolean).join(', ')}
                   </p>
                 </div>
@@ -327,7 +367,7 @@ const uploadToCloudinary = async (file: File) => {
               <div className="space-y-4">
                 <div className="flex justify-between text-sm font-medium text-gray-500">
                   <span>Subtotal</span>
-                  <span className="text-gray-800">{formatCurrency(order.totalAmount - (order.shippingCost || 0))}</span>
+                  <span>{formatCurrency(order.totalAmount - (order.shippingCost || 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm font-medium text-gray-500">
                   <span>Ongkir</span>

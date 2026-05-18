@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 
+import { revalidatePath } from "next/cache";
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
@@ -9,10 +9,11 @@ export async function GET() {
         user: true,
         items: {
           include: {
-            product: true, // Data produk sudah di-include, tinggal kita keluarkan di map bawah
+            product: true,
           },
         },
       },
+
       orderBy: {
         createdAt: "desc",
       },
@@ -20,52 +21,109 @@ export async function GET() {
 
     const enrichedOrders = orders.map((order) => ({
       id: order.id,
+
       userId: order.userId,
+
       orderNumber: order.orderNumber,
-      userName: order.user?.name || order.shippingRecipient || "Guest",
-      userEmail: order.user?.email || "-",
-      totalAmount: order.totalAmount,
-      shippingCost: order.shippingCost,
-      paymentStatus: order.paymentStatus,
-      paymentMethod: order.paymentMethod,
-      paymentProofUrl: order.paymentProofUrl || (order as any).payment?.paymentProof || null,
-      status: order.status,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      trackingNumber: order.trackingNumber,
-      courier: order.courier,
-      notes: order.notes,
-      
-      // --- PERBAIKAN DI SINI ---
+
+      userName:
+        order.user?.name ||
+        order.shippingRecipient ||
+        "Guest",
+
+      userEmail:
+        order.user?.email || "-",
+
+      totalAmount:
+        order.totalAmount,
+
+      shippingCost:
+        order.shippingCost,
+
+      paymentStatus:
+        order.paymentStatus,
+
+      paymentMethod:
+        order.paymentMethod,
+
+      paymentProofUrl:
+        order.paymentProofUrl ||
+        (order as any).payment?.paymentProof ||
+        null,
+
+      status:
+        order.status,
+
+      createdAt:
+        order.createdAt,
+
+      updatedAt:
+        order.updatedAt,
+
+      trackingNumber:
+        order.trackingNumber,
+
+      courier:
+        order.courier,
+
+      notes:
+        order.notes,
+
       items: order.items.map((item) => ({
         id: item.id,
-        productId: item.productId,
-        productName: item.product?.name || "Produk",
-        quantity: item.quantity,
-        price: item.price,
-        // Ambil URL gambar Cloudinary langsung dari tabel product
-        image: item.product?.image || null, 
-        // Menggunakan properti bgColor dari produk jika ada, jika tidak fallback ke abu-abu
-        productBgColor: (item.product as any)?.bgColor || "bg-gray-100",
-        productEmoji: "🥛",
+
+        productId:
+          item.productId,
+
+        productName:
+          item.product?.name ||
+          "Produk",
+
+        quantity:
+          item.quantity,
+
+        price:
+          item.price,
+
+        productEmoji: "📦",
+
+        productBgColor:
+          "bg-gray-100",
       })),
 
       shippingAddress: {
-        recipientName: order.shippingRecipient,
-        phone: order.shippingPhone,
-        address: order.shippingAddress,
-        city: order.shippingCity,
-        province: order.shippingProvince,
-        postalCode: order.shippingPostalCode,
+        recipientName:
+          order.shippingRecipient,
+
+        phone:
+          order.shippingPhone,
+
+        address:
+          order.shippingAddress,
+
+        city:
+          order.shippingCity,
+
+        province:
+          order.shippingProvince,
+
+        postalCode:
+          order.shippingPostalCode,
       },
     }));
 
     return NextResponse.json(enrichedOrders);
   } catch (error) {
     console.error(error);
+
     return NextResponse.json(
-      { error: "Gagal mengambil data orders" },
-      { status: 500 }
+      {
+        error:
+          "Gagal mengambil data orders",
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
@@ -112,8 +170,11 @@ export async function POST(req: Request) {
       },
     });
 
+    // ================= TAMBAHKAN KODE INI =================
+    // Menghapus cache rute pesanan agar halaman detail langsung mendapatkan data teranyar
     revalidatePath("/customer/orders");
     revalidatePath(`/customer/orders/${order.id}`);
+    // ======================================================
 
     return NextResponse.json(order);
   } catch (error) {

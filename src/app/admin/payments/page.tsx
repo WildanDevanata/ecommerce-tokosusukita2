@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Eye, Search, X } from 'lucide-react';
-import { useApp } from '@/store/appcontext'; // Pastikan path store sesuai
+import { useRouter } from 'next/navigation'; // Tambahkan untuk sinkronisasi server component jika diperlukan
+import { CheckCircle2, XCircle, Eye, Search, X, Loader2 } from 'lucide-react';
+import { useApp } from '@/store/appcontext'; 
 import { formatRupiah, getPaymentStatusLabel, getPaymentStatusColor } from '@/lib/utils';
 
-// Definisi Type untuk Payment Enriched agar sesuai dengan state UI
 interface EnrichedPayment {
   id: string;
   orderId: string;
@@ -16,7 +16,7 @@ interface EnrichedPayment {
   amount: number;
   paymentProof?: string;
   createdAt: string;
-  userEmail: string; // Tambahkan ini
+  userEmail: string;
 }
 
 const tabs = [
@@ -30,20 +30,20 @@ const tabs = [
 const methodLabels: Record<string, string> = { 
   TRANSFER: '🏦 Transfer', 
   MIDTRANS: '💳 Midtrans', 
-  COD: '📦 COD', 
   EWALLET: '📱 E-Wallet' 
 };
 
 export default function AdminPaymentsPage() {
-  // Ambil state dan action dari AppContext
+  const router = useRouter();
   const { orders, updateOrderPaymentStatus, updateOrderStatus } = useApp();
   
   const [activeTab, setActiveTab] = useState('ALL');
   const [search, setSearch] = useState('');
   const [selectedPayment, setSelectedPayment] = useState<EnrichedPayment | null>(null);
+  
+  // State global loading untuk mencegah klik ganda saat hit API
+  const [isMutating, setIsMutating] = useState(false);
 
-  // Pemetaan data dari AppContext (Order[]) ke format EnrichedPayment
-  // Ini otomatis terupdate saat state 'orders' di context berubah
   const enrichedPayments: EnrichedPayment[] = orders.map(order => ({
     id: `pay-${order.id}`,
     orderId: order.id,
@@ -65,23 +65,74 @@ export default function AdminPaymentsPage() {
     return matchTab && matchSearch;
   });
 
-  const handleVerify = (payment: EnrichedPayment) => {
+  // =======================================================
+  // HANDLER: VERIFIKASI PEMBAYARAN (SIMPAN KE DATABASE & CONTEXT)
+  // =======================================================
+  const handleVerify = async (payment: EnrichedPayment) => {
     if (!confirm(`Verifikasi pembayaran untuk pesanan #${payment.orderNumber}?`)) return;
     
-    // Update status pembayaran di context (dan nantinya ke DB via API)
-    updateOrderPaymentStatus(payment.orderId, 'PAID');
-    
-    // Secara otomatis update status pesanan menjadi CONFIRMED agar gudang bisa memproses
-    updateOrderStatus(payment.orderId, 'CONFIRMED');
-    
-    setSelectedPayment(null);
+    setIsMutating(true);
+    try {
+      // 1. Kirim perubahan ke database via API internal Next.js Anda
+      const res = await fetch(`/api/orders/${payment.orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentStatus: 'PAID',
+          status: 'CONFIRMED' // Ubah status order menjadi CONFIRMED agar gudang bisa proses
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Gagal memperbarui data di database');
+      }
+
+      // 2. Jika API sukses, sinkronkan ke global state Context agar UI terupdate instan
+      updateOrderPaymentStatus(payment.orderId, 'PAID');
+      updateOrderStatus(payment.orderId, 'CONFIRMED');
+      
+      setSelectedPayment(null);
+      router.refresh(); // Refresh route data cache jika menggunakan server component parent
+    } catch (error) {
+      console.error(error);
+      alert('Gagal memverifikasi pembayaran. Periksa koneksi atau API database Anda.');
+    } finally {
+      setIsMutating(false);
+    }
   };
 
-  const handleReject = (payment: EnrichedPayment) => {
+  // =======================================================
+  // HANDLER: TOLAK PEMBAYARAN (SIMPAN KE DATABASE & CONTEXT)
+  // =======================================================
+  const handleReject = async (payment: EnrichedPayment) => {
     if (!confirm(`Tolak pembayaran untuk pesanan #${payment.orderNumber}?`)) return;
     
-    updateOrderPaymentStatus(payment.orderId, 'FAILED');
-    setSelectedPayment(null);
+    setIsMutating(true);
+    try {
+      // 1. Kirim perubahan status pembayaran gagal ke database
+      const res = await fetch(`/api/orders/${payment.orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentStatus: 'FAILED'
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Gagal memperbarui data di database');
+      }
+
+      // 2. Sinkronkan ke global state Context
+      updateOrderPaymentStatus(payment.orderId, 'FAILED');
+      
+      setSelectedPayment(null);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menolak pembayaran. Periksa koneksi atau API database Anda.');
+    } finally {
+      setIsMutating(false);
+    }
   };
 
   const waitingCount = enrichedPayments.filter(p => p.status === 'WAITING_VERIFICATION').length;
@@ -112,10 +163,11 @@ export default function AdminPaymentsPage() {
           {tabs.map(tab => (
             <button
               key={tab.id}
+              disabled={isMutating}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-shrink-0 px-6 py-4 text-sm font-bold transition-all relative ${
                 activeTab === tab.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
-              }`}
+              } disabled:opacity-50`}
             >
               {tab.label}
               {tab.id === 'WAITING_VERIFICATION' && waitingCount > 0 && (
@@ -162,11 +214,11 @@ export default function AdminPaymentsPage() {
                 <tr key={pay.id} className="hover:bg-gray-50/30 transition-colors">
                   <td className="px-6 py-4 text-sm font-bold text-blue-600">#{pay.orderNumber}</td>
                   <td className="px-6 py-4">
-  <div className="flex flex-col">
-    <p className="text-sm font-medium text-gray-700">{pay.userName}</p>
-    <p className="text-xs text-gray-400">{pay.userEmail}</p>
-  </div>
-</td>
+                    <div className="flex flex-col">
+                      <p className="text-sm font-medium text-gray-700">{pay.userName}</p>
+                      <p className="text-xs text-gray-400">{pay.userEmail}</p>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-sm font-black text-gray-800">{formatRupiah(pay.amount)}</td>
                   <td className="px-6 py-4">
                     <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg uppercase">
@@ -179,36 +231,43 @@ export default function AdminPaymentsPage() {
                       {getPaymentStatusLabel(pay.status)}
                     </span>
                   </td>
-                  {/* 3. TAMBAHKAN KOLOM TANGGAL DI SAMPING STATUS */}
                   <td className="px-6 py-4">
-  <div className="flex flex-col">
-    <span className="text-sm font-medium text-gray-700">
-      {pay.createdAt && !isNaN(Date.parse(pay.createdAt)) 
-        ? new Date(pay.createdAt).toLocaleDateString('id-ID', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          })
-        : 'Tanggal tidak valid'}
-    </span>
-    <span className="text-[10px] text-gray-400 font-medium">
-      {pay.createdAt && !isNaN(Date.parse(pay.createdAt)) 
-        ? `${new Date(pay.createdAt).toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })} WIB`
-        : '-'}
-    </span>
-  </div>
-</td>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-700">
+                        {pay.createdAt && !isNaN(Date.parse(pay.createdAt)) 
+                          ? new Date(pay.createdAt).toLocaleDateString('id-ID', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })
+                          : 'Tanggal tidak valid'}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {pay.createdAt && !isNaN(Date.parse(pay.createdAt)) 
+                          ? `${new Date(pay.createdAt).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })} WIB`
+                          : '-'}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-1">
                       {pay.status === 'WAITING_VERIFICATION' && (
                         <>
-                          <button onClick={() => handleVerify(pay)} className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all">
+                          <button 
+                            disabled={isMutating} 
+                            onClick={() => handleVerify(pay)} 
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all disabled:opacity-50"
+                          >
                             <CheckCircle2 className="w-5 h-5" />
                           </button>
-                          <button onClick={() => handleReject(pay)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                          <button 
+                            disabled={isMutating} 
+                            onClick={() => handleReject(pay)} 
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50"
+                          >
                             <XCircle className="w-5 h-5" />
                           </button>
                         </>
@@ -237,7 +296,7 @@ export default function AdminPaymentsPage() {
           <div className="bg-white rounded-[40px] w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-8 border-b border-gray-50">
               <h3 className="text-xl font-black text-gray-800">Detail Transaksi</h3>
-              <button onClick={() => setSelectedPayment(null)} className="p-2 rounded-full hover:bg-gray-100">
+              <button disabled={isMutating} onClick={() => setSelectedPayment(null)} className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-50">
                 <X className="w-6 h-6 text-gray-400" />
               </button>
             </div>
@@ -264,11 +323,19 @@ export default function AdminPaymentsPage() {
 
               {selectedPayment.status === 'WAITING_VERIFICATION' && (
                 <div className="flex gap-4 pt-4">
-                  <button onClick={() => handleReject(selectedPayment)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-[20px] font-bold hover:bg-red-100 transition-all">
-                    Tolak
+                  <button 
+                    disabled={isMutating} 
+                    onClick={() => handleReject(selectedPayment)} 
+                    className="flex-1 bg-red-50 text-red-500 py-4 rounded-[20px] font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isMutating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tolak'}
                   </button>
-                  <button onClick={() => handleVerify(selectedPayment)} className="flex-1 bg-blue-600 text-white py-4 rounded-[20px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">
-                    Verifikasi
+                  <button 
+                    disabled={isMutating} 
+                    onClick={() => handleVerify(selectedPayment)} 
+                    className="flex-1 bg-blue-600 text-white py-4 rounded-[20px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isMutating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verifikasi'}
                   </button>
                 </div>
               )}

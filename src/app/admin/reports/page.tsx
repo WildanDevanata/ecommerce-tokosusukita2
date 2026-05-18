@@ -44,7 +44,7 @@ export default function AdminReportsPage() {
 
   const [period, setPeriod] = useState('month');
   const [activeTab, setActiveTab] = useState('financial');
-
+    
   // =========================
   // STATS
   // =========================

@@ -162,7 +162,7 @@ export default function CartPage() {
                       <p className="mt-1 text-sm text-gray-400">
                         {(item as any)
                           ?.category?.name ||
-                          item.categoryName}
+                          item.category}
                       </p>
                     </div>
 

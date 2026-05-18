@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Upload, CheckCircle2, Truck, 
-  MapPin, CreditCard, AlertTriangle, Loader2 
+  MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send
 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
 import Navbar from '@/components/sharing/navbar';
@@ -23,6 +23,10 @@ export default function OrderDetailPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   
+  // --- STATE BARU UNTUK SELEKSI & PREVIEW FILE ---
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
   // State untuk mengelola data order yang siap tampil (gabungan Context & Fallback API)
   const [order, setOrder] = useState<any>(null);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -32,14 +36,12 @@ export default function OrderDetailPage() {
   useEffect(() => {
     setIsHydrated(true);
 
-    // Pertama, coba cari datanya di dalam global context orders
     const foundInContext = orders.find(o => o.id === id);
 
     if (foundInContext) {
       setOrder(foundInContext);
       setLoadingFetch(false);
     } else if (id) {
-      // Jika di context tidak ketemu (karena lag router.push), ambil langsung dari API route
       setLoadingFetch(true);
       fetch(`/api/orders/${id}`)
         .then((res) => {
@@ -53,6 +55,15 @@ export default function OrderDetailPage() {
         .finally(() => setLoadingFetch(false));
     }
   }, [id, orders]);
+
+  // Cleanup object URL preview untuk menghindari memory leak
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // --- HELPER FUNCTIONS ---
   const formatCurrency = (val: number) => {
@@ -105,18 +116,36 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 1. Fungsi saat user memilih file (Hanya taruh di state & buat preview)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !order) return;
+    if (!file) return;
+
+    setSelectedFile(file);
+    
+    // Bikin link preview temporer dari lokal browser
+    if (previewUrl) URL.revokeObjectURL(previewUrl); // reset preview lama jika ada
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  // 2. Fungsi terpisah saat tombol "Kirim Bukti Pembayaran" diklik oleh user
+  const handleUploadPayment = async () => {
+    if (!selectedFile || !order) {
+      alert("Silakan pilih file bukti transfer terlebih dahulu.");
+      return;
+    }
 
     try {
       setUploading(true);
-      const imageUrl = await uploadToCloudinary(file); 
+      // Proses upload ke Cloudinary baru berjalan di sini
+      const imageUrl = await uploadToCloudinary(selectedFile); 
       await uploadPaymentProof(order.id, imageUrl, order.paymentMethod || 'BANK TRANSFER');
+      
       alert("Bukti pembayaran berhasil dikirim!");
       setShowUpload(false);
+      setSelectedFile(null);
+      setPreviewUrl(null);
       
-      // Update state local agar langsung berubah tanpa reload halaman setelah upload
       setOrder((prev: any) => prev ? { ...prev, paymentProofUrl: imageUrl } : null);
     } catch (error: any) {
       alert(error.message);
@@ -125,7 +154,7 @@ export default function OrderDetailPage() {
     }
   };
 
-  // 2. Layar loading super aman: Tunggu hydration & proses fetch fallback selesai
+  // Layar loading awal
   if (!isHydrated || loadingFetch) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
@@ -135,7 +164,6 @@ export default function OrderDetailPage() {
     );
   }
 
-  // 3. Jika sudah di-fetch lewat API dan dicari di Context tapi hasil pesanan memang bernilai null/tidak ada
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -251,7 +279,7 @@ export default function OrderDetailPage() {
                   <p className="text-3xl font-black text-blue-700">{formatCurrency(order.totalAmount)}</p>
                 </div>
 
-                {/* Upload Section */}
+                {/* ================= SECTION UPLOAD DENGAN PREVIEW & PISAH BUTTON ================= */}
                 {!order.paymentProofUrl ? (
                   <div className="mt-5 space-y-3">
                     <input 
@@ -267,21 +295,62 @@ export default function OrderDetailPage() {
                       className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white py-3.5 rounded-xl font-bold hover:bg-amber-600 transition-all active:scale-[0.98]"
                     >
                       <Upload className="w-4 h-4" /> 
-                      {showUpload ? 'Batal Upload' : 'Upload Bukti Transfer'}
+                      {showUpload ? 'Sembunyikan Menu Upload' : 'Upload Bukti Transfer'}
                     </button>
 
                     {showUpload && (
-                      <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-8 text-center bg-white/50 animate-in fade-in zoom-in duration-300">
-                        <div className="text-4xl mb-3">📸</div>
-                        <p className="text-sm font-medium text-gray-700 mb-4">Pilih foto bukti transfer Anda</p>
-                        <button 
-                          onClick={() => document.getElementById('payment-file')?.click()} 
-                          disabled={uploading} 
-                          className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100 flex items-center gap-2 mx-auto"
-                        >
-                          {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
-                          {uploading ? 'Sedang Mengunggah...' : 'Pilih Foto & Kirim'}
-                        </button>
+                      <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm animate-in fade-in zoom-in duration-300 space-y-4">
+                        
+                        {/* Box Preview Gambar */}
+                        {previewUrl ? (
+                          <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
+                            <img 
+                              src={previewUrl} 
+                              alt="Preview Bukti Transfer" 
+                              className="w-full h-auto max-h-64 object-contain rounded-lg"
+                            />
+                            <p className="text-xs text-gray-500 mt-2 font-medium truncate px-2">
+                              📄 {selectedFile?.name}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 max-w-xs mx-auto flex flex-col items-center justify-center text-gray-400">
+                            <ImageIcon className="w-10 h-10 stroke-1 mb-2" />
+                            <p className="text-xs font-medium">Belum ada foto yang dipilih</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto pt-2">
+                          {/* Tombol 1: Pilih / Ganti File */}
+                          <button 
+                            onClick={() => document.getElementById('payment-file')?.click()} 
+                            disabled={uploading}
+                            className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
+                          >
+                            {previewUrl ? '🔄 Ganti Foto' : '📂 Pilih Foto'}
+                          </button>
+
+                          {/* Tombol 2: Kirim ke Cloudinary (Hanya aktif jika file sudah dipilih) */}
+                          {previewUrl && (
+                            <button 
+                              onClick={handleUploadPayment} 
+                              disabled={uploading} 
+                              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                            >
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span>Mengirim...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-4 h-4" />
+                                  <span>Kirim Bukti</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -291,6 +360,7 @@ export default function OrderDetailPage() {
                     <p className="text-sm font-bold">Bukti sudah diupload. Menunggu verifikasi admin.</p>
                   </div>
                 )}
+                {/* =============================================================================== */}
               </div>
             )}
 

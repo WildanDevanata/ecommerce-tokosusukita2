@@ -6,10 +6,8 @@ export default async function Page() {
     orderBy: {
       createdAt: 'desc',
     },
-
     include: {
       user: true,
-
       items: {
         include: {
           product: true,
@@ -18,52 +16,39 @@ export default async function Page() {
     },
   });
 
-const mappedOrders = orders.map((o) => ({
-  id: o.id,
-  orderNumber: o.orderNumber,
+  const mappedOrders = orders.map((o) => ({
+    id: o.id,
+    orderNumber: o.orderNumber,
+    userName: o.user?.name || 'User',
+    userEmail: o.user?.email || '-',
+    totalAmount: o.totalAmount,
+    status: o.status,
+    paymentStatus: o.paymentStatus,
+    paymentMethod: o.paymentMethod,
+    trackingNumber: o.trackingNumber,
+    courier: o.courier,
+    
+    // Perbaikan: Ubah objek Date menjadi string ISO agar aman dilempar ke 'use client'
+    createdAt: o.createdAt.toISOString(),
 
-  userName: o.user?.name || 'User',
-  userEmail: o.user?.email || '-',
+    items: o.items.map((i) => ({
+      id: i.id,
+      productName: i.product?.name || 'Produk Tidak Diketahui', // Pencegahan jika produk null
+      quantity: i.quantity,
+      price: i.price,
+      productEmoji: '📦',
+      productBgColor: 'bg-gray-100',
+    })),
 
-  totalAmount: o.totalAmount,
-
-  status: o.status,
-  paymentStatus: o.paymentStatus,
-
-  paymentMethod: o.paymentMethod,
-
-  trackingNumber: o.trackingNumber,
-  courier: o.courier,
-
-  createdAt: o.createdAt,
-
-  items: o.items.map((i) => ({
-    id: i.id,
-    productName: i.product.name,
-    quantity: i.quantity,
-    price: i.price,
-    productEmoji: '📦',
-    productBgColor: 'bg-gray-100',
-  })),
-
-  shippingAddress: {
-    recipientName:
-      o.shippingRecipient,
-
-    phone: o.shippingPhone,
-
-    address:
-      o.shippingAddress,
-
-    city: o.shippingCity,
-
-    province:
-      o.shippingProvince,
-
-    postalCode:
-      o.shippingPostalCode,
-  },
-}));
+    shippingAddress: {
+      recipientName: o.shippingRecipient,
+      phone: o.shippingPhone,
+      address: o.shippingAddress,
+      city: o.shippingCity,
+      province: o.shippingProvince,
+      postalCode: o.shippingPostalCode,
+    },
+  }));
 
   return <OrdersClient orders={mappedOrders} />;
 }

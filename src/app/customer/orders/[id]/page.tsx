@@ -6,11 +6,12 @@ import Image from 'next/image'; // Menggunakan optimasi gambar Next.js
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Upload, CheckCircle2, Truck,
-  MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send
+  MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send, ExternalLink
 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
+import Script from 'next/script';
 
 const statusTimeline = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
 
@@ -45,6 +46,7 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<any>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [loadingFetch, setLoadingFetch] = useState(true);
+  const [loadingMidtrans, setLoadingMidtrans] = useState(false);
 
   // 1. Sinkronisasi Hydration & Data Fetching Fallback
   useEffect(() => {
@@ -62,11 +64,11 @@ export default function OrderDetailPage() {
           if (!res.ok) throw new Error('Gagal memuat');
           return res.json();
         })
-        .then((data) => {
-          if (data) setOrder(data);
-        })
-        .catch((err) => console.error("Fallback fetch error:", err))
-        .finally(() => setLoadingFetch(false));
+          .then((data) => {
+            if (data) setOrder(data);
+          })
+          .catch((err) => console.error("Fallback fetch error:", err))
+          .finally(() => setLoadingFetch(false));
     }
   }, [id, orders]);
 
@@ -96,6 +98,53 @@ export default function OrderDetailPage() {
       CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
     };
     return map[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+  };
+
+  // --- LOGIKA MIDTRANS ---
+  const handleMidtransPayment = async () => {
+    if (!order) return;
+    try {
+      setLoadingMidtrans(true);
+      
+      // 1. Ambil snapToken dari API backend Anda
+      const res = await fetch(`/api/payments/midtrans/token`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }) 
+      });
+      
+      if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
+      
+      const data = await res.json(); // Mengambil { snapToken: "..." } dari backend
+      
+      // 2. Panggil pop-up Midtrans Snap menggunakan token tersebut
+      if (window && (window as any).snap) {
+        (window as any).snap.pay(data.snapToken, {
+          onSuccess: function(result: any){
+            alert("Pembayaran berhasil!");
+            router.refresh(); // Segarkan halaman untuk memperbarui status pesanan
+          },
+          onPending: function(result: any){
+            alert("Menunggu pembayaran Anda.");
+            router.refresh();
+          },
+          onError: function(result: any){
+            alert("Pembayaran gagal, silakan coba lagi.");
+          },
+          onClose: function(){
+            alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.');
+          }
+        });
+      } else {
+        alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
+      }
+
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Gagal memproses pembayaran Midtrans");
+    } finally {
+      setLoadingMidtrans(false);
+    }
   };
 
   // --- LOGIKA UPLOAD ---
@@ -163,7 +212,6 @@ export default function OrderDetailPage() {
 
   // --- LOGIKA FUNGSIONAL PEMBATALAN PESANAN ---
   const confirmCancelOrder = async () => {
-    // Tentukan string alasan akhir yang akan dikirim ke backend
     const finalReason = selectedReason.startsWith("Lainnya") ? customReason : selectedReason;
 
     if (selectedReason.startsWith("Lainnya") && !customReason.trim()) {
@@ -173,14 +221,11 @@ export default function OrderDetailPage() {
 
     try {
       setIsCancelling(true);
-
-      // Bypass type check aman menggunakan (cancelOrder as any) jika context belum di-update parameter keduanya
       await (cancelOrder as any)(order.id, finalReason);
 
       alert("Pesanan Anda berhasil dibatalkan.");
       setIsCancelModalOpen(false);
 
-      // Sinkronisasi state lokal instan agar UI langsung berubah ke mode CANCELLED
       setOrder((prev: any) => prev ? {
         ...prev,
         status: 'CANCELLED',
@@ -220,10 +265,18 @@ export default function OrderDetailPage() {
 
   const statusIndex = statusTimeline.indexOf(order.status);
   const activeBanks = bankAccounts?.filter(b => b.isActive && b.type === 'BANK') || [];
+  
+  // Cek apakah metode pembayaran adalah Midtrans
+  const isMidtrans = order.paymentMethod?.toUpperCase().includes('MIDTRANS');
 
   return (
-    <>
-      <Navbar />
+  <>
+    {/* Load Midtrans Snap (Ganti ke https://app.midtrans.com/snap/snap.js jika sudah Production) */}
+    <Script 
+      src="https://app.sandbox.midtrans.com/snap/snap.js" 
+      data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+    />
+    <Navbar />
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
@@ -301,102 +354,129 @@ export default function OrderDetailPage() {
                   <h3 className="font-bold">Selesaikan Pembayaran</h3>
                 </div>
 
-                <div className="space-y-3 mb-6">
-                  {activeBanks.map(bank => (
-                    <div key={bank.id} className="bg-white rounded-xl p-4 flex items-center gap-4 border border-amber-100">
-                      <div className={`w-12 h-12 ${bank.color || 'bg-blue-600'} rounded-xl flex items-center justify-center text-white font-black`}>
-                        {bank.bankName.substring(0, 3)}
+                {/* Sembunyikan instruksi akun bank jika pembayarannya otomatis lewat Midtrans */}
+                {!isMidtrans && (
+                  <div className="space-y-3 mb-6">
+                    {activeBanks.map(bank => (
+                      <div key={bank.id} className="bg-white rounded-xl p-4 flex items-center gap-4 border border-amber-100">
+                        <div className={`w-12 h-12 ${bank.color || 'bg-blue-600'} rounded-xl flex items-center justify-center text-white font-black`}>
+                          {bank.bankName.substring(0, 3)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500 font-medium">{bank.bankName}</p>
+                          <p className="text-base font-bold text-gray-800 tracking-wide">{bank.accountNumber}</p>
+                          <p className="text-xs text-gray-400">a.n. {bank.accountName}</p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 font-medium">{bank.bankName}</p>
-                        <p className="text-base font-bold text-gray-800 tracking-wide">{bank.accountNumber}</p>
-                        <p className="text-xs text-gray-400">a.n. {bank.accountName}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
 
-                <div className="bg-white rounded-2xl p-5 text-center border border-amber-100 shadow-inner">
+                <div className="bg-white rounded-2xl p-5 text-center border border-amber-100 shadow-inner mb-5">
                   <p className="text-xs text-gray-500 mb-1">Total yang harus dibayar:</p>
                   <p className="text-3xl font-black text-blue-700">{formatCurrency(order.totalAmount)}</p>
                 </div>
 
-                {/* SECTION UPLOAD */}
-                {!order.paymentProofUrl ? (
-                  <div className="mt-5 space-y-3">
-                    <input
-                      type="file"
-                      id="payment-file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                    />
-
+                {/* CONDITION RENDER: MIDTRANS BUTTON VS MANUAL UPLOAD */}
+                {isMidtrans ? (
+                  <div className="space-y-2">
                     <button
-                      onClick={() => setShowUpload(!showUpload)}
-                      className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white py-3.5 rounded-xl font-bold hover:bg-amber-600 transition-all active:scale-[0.98]"
+                      onClick={handleMidtransPayment}
+                      disabled={loadingMidtrans}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-[0.98] disabled:opacity-50"
                     >
-                      <Upload className="w-4 h-4" />
-                      {showUpload ? 'Sembunyikan Menu Upload' : 'Upload Bukti Transfer'}
+                      {loadingMidtrans ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Memproses Midtrans...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Bayar Sekarang via Midtrans</span>
+                        </>
+                      )}
                     </button>
-
-                    {showUpload && (
-                      <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm space-y-4">
-                        {previewUrl ? (
-                          <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
-                            <img
-                              src={previewUrl}
-                              alt="Preview Bukti Transfer"
-                              className="w-full h-auto max-h-64 object-contain rounded-lg"
-                            />
-                            <p className="text-xs text-gray-500 mt-2 font-medium truncate px-2">
-                              📄 {selectedFile?.name}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 max-w-xs mx-auto flex flex-col items-center justify-center text-gray-400">
-                            <ImageIcon className="w-10 h-10 stroke-1 mb-2" />
-                            <p className="text-xs font-medium">Belum ada foto yang dipilih</p>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto pt-2">
-                          <button
-                            onClick={() => document.getElementById('payment-file')?.click()}
-                            disabled={uploading}
-                            className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
-                          >
-                            {previewUrl ? '🔄 Ganti Foto' : '📂 Pilih Foto'}
-                          </button>
-
-                          {previewUrl && (
-                            <button
-                              onClick={handleUploadPayment}
-                              disabled={uploading}
-                              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
-                            >
-                              {uploading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span>Mengirim...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="w-4 h-4" />
-                                  <span>Kirim Bukti</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    <p className="text-[11px] text-center text-gray-500">Anda akan diarahkan ke gerbang pembayaran aman Midtrans.</p>
                   </div>
                 ) : (
-                  <div className="mt-5 flex items-center gap-3 p-4 bg-green-100 rounded-xl text-green-800 border border-green-200">
-                    <CheckCircle2 className="w-6 h-6" />
-                    <p className="text-sm font-bold">Bukti sudah diupload. Menunggu verifikasi admin.</p>
-                  </div>
+                  /* SECTION UPLOAD MANUAL */
+                  !order.paymentProofUrl ? (
+                    <div className="space-y-3">
+                      <input
+                        type="file"
+                        id="payment-file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                      />
+
+                      <button
+                        onClick={() => setShowUpload(!showUpload)}
+                        className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white py-3.5 rounded-xl font-bold hover:bg-amber-600 transition-all active:scale-[0.98]"
+                      >
+                        <Upload className="w-4 h-4" />
+                        {showUpload ? 'Sembunyikan Menu Upload' : 'Upload Bukti Transfer'}
+                      </button>
+
+                      {showUpload && (
+                        <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm space-y-4">
+                          {previewUrl ? (
+                            <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
+                              <img
+                                src={previewUrl}
+                                alt="Preview Bukti Transfer"
+                                className="w-full h-auto max-h-64 object-contain rounded-lg"
+                              />
+                              <p className="text-xs text-gray-500 mt-2 font-medium truncate px-2">
+                                📄 {selectedFile?.name}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 max-w-xs mx-auto flex flex-col items-center justify-center text-gray-400">
+                              <ImageIcon className="w-10 h-10 stroke-1 mb-2" />
+                              <p className="text-xs font-medium">Belum ada foto yang dipilih</p>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto pt-2">
+                            <button
+                              onClick={() => document.getElementById('payment-file')?.click()}
+                              disabled={uploading}
+                              className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
+                            >
+                              {previewUrl ? '🔄 Ganti Foto' : '📂 Pilih Foto'}
+                            </button>
+
+                            {previewUrl && (
+                              <button
+                                onClick={handleUploadPayment}
+                                disabled={uploading}
+                                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                              >
+                                {uploading ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Mengirim...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-4 h-4" />
+                                    <span>Kirim Bukti</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 bg-green-100 rounded-xl text-green-800 border border-green-200">
+                      <CheckCircle2 className="w-6 h-6" />
+                      <p className="text-sm font-bold">Bukti sudah diupload. Menunggu verifikasi admin.</p>
+                    </div>
+                  )
                 )}
               </div>
             )}
@@ -564,7 +644,6 @@ export default function OrderDetailPage() {
                 ))}
               </div>
 
-              {/* Textarea muncul bersyarat jika memilih alasan 'Lainnya' */}
               {selectedReason.startsWith("Lainnya") && (
                 <div className="space-y-1.5 animate-slideDown">
                   <label className="block text-xs font-bold text-gray-500 uppercase">Tulis Alasan Kustom:</label>

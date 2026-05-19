@@ -136,6 +136,7 @@ model Order {
   status          OrderStatus   @default(PENDING)
   paymentStatus   PaymentStatus @default(PENDING)
   paymentMethod   PaymentMethod?
+  snapToken       String?
   trackingNumber  String?
   courier         String?
   notes           String?

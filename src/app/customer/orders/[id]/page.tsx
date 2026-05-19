@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image'; // Menggunakan optimasi gambar Next.js
 import { useParams, useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, Upload, CheckCircle2, Truck, 
+import {
+  ArrowLeft, Upload, CheckCircle2, Truck,
   MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send
 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
@@ -13,21 +14,34 @@ import Footer from '@/components/sharing/footer';
 
 const statusTimeline = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
 
+// 📋 DAFTAR ALASAN UTAMA PEMBATALAN PESANAN
+const CANCEL_REASONS = [
+  "Ingin mengubah alamat pengiriman",
+  "Salah memilih varian produk / jumlah unit",
+  "Menemukan harga yang lebih murah di toko lain",
+  "Metode pembayaran tidak tersedia / terlalu rumit",
+  "Lainnya (Tulis alasan Anda sendiri)"
+];
+
 export default function OrderDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const router = useRouter();
-  
+
   const { orders, uploadPaymentProof, cancelOrder, bankAccounts } = useApp();
-  
+
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
-  
-  // --- STATE BARU UNTUK SELEKSI & PREVIEW FILE ---
+
+  // ➕ State Baru untuk Modal Pembatalan Sesuai Desain Baru
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [selectedReason, setSelectedReason] = useState(CANCEL_REASONS[0]);
+  const [customReason, setCustomReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
-  // State untuk mengelola data order yang siap tampil (gabungan Context & Fallback API)
+
   const [order, setOrder] = useState<any>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [loadingFetch, setLoadingFetch] = useState(true);
@@ -40,7 +54,7 @@ export default function OrderDetailPage() {
 
     if (foundInContext) {
       setOrder(foundInContext);
-      setLoadingFetch(false);
+      loadingFetch && setLoadingFetch(false);
     } else if (id) {
       setLoadingFetch(true);
       fetch(`/api/orders/${id}`)
@@ -56,22 +70,20 @@ export default function OrderDetailPage() {
     }
   }, [id, orders]);
 
-  // Cleanup object URL preview untuk menghindari memory leak
+  // Cleanup object URL preview
   useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
 
   // --- HELPER FUNCTIONS ---
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('id-ID', { 
-      style: 'currency', 
-      currency: 'IDR', 
-      minimumFractionDigits: 0 
-    }).format(val);
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(val || 0);
   };
 
   const getStatusInfo = (status: string) => {
@@ -88,8 +100,8 @@ export default function OrderDetailPage() {
 
   // --- LOGIKA UPLOAD ---
   const uploadToCloudinary = async (file: File) => {
-    const CLOUD_NAME = "dwjuyd3xj"; 
-    const PRESET_NAME = "ml_default"; 
+    const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dwjuyd3xj";
+    const PRESET_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET || "ml_default";
 
     const formData = new FormData();
     formData.append('file', file);
@@ -105,7 +117,7 @@ export default function OrderDetailPage() {
 
       if (!res.ok) {
         if (data.error?.message.includes("Unknown API key")) {
-          throw new Error(`Cloudinary tidak mengenali preset "${PRESET_NAME}". Pastikan preset ini sudah dibuat sebagai 'Unsigned' di Settings > Upload.`);
+          throw new Error(`Cloudinary tidak mengenali preset "${PRESET_NAME}". Pastikan preset ini sudah dibuat sebagai 'Unsigned'.`);
         }
         throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
       }
@@ -116,19 +128,15 @@ export default function OrderDetailPage() {
     }
   };
 
-  // 1. Fungsi saat user memilih file (Hanya taruh di state & buat preview)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setSelectedFile(file);
-    
-    // Bikin link preview temporer dari lokal browser
-    if (previewUrl) URL.revokeObjectURL(previewUrl); // reset preview lama jika ada
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
   };
 
-  // 2. Fungsi terpisah saat tombol "Kirim Bukti Pembayaran" diklik oleh user
   const handleUploadPayment = async () => {
     if (!selectedFile || !order) {
       alert("Silakan pilih file bukti transfer terlebih dahulu.");
@@ -137,15 +145,14 @@ export default function OrderDetailPage() {
 
     try {
       setUploading(true);
-      // Proses upload ke Cloudinary baru berjalan di sini
-      const imageUrl = await uploadToCloudinary(selectedFile); 
+      const imageUrl = await uploadToCloudinary(selectedFile);
       await uploadPaymentProof(order.id, imageUrl, order.paymentMethod || 'BANK TRANSFER');
-      
+
       alert("Bukti pembayaran berhasil dikirim!");
       setShowUpload(false);
       setSelectedFile(null);
       setPreviewUrl(null);
-      
+
       setOrder((prev: any) => prev ? { ...prev, paymentProofUrl: imageUrl } : null);
     } catch (error: any) {
       alert(error.message);
@@ -154,7 +161,39 @@ export default function OrderDetailPage() {
     }
   };
 
-  // Layar loading awal
+  // --- LOGIKA FUNGSIONAL PEMBATALAN PESANAN ---
+  const confirmCancelOrder = async () => {
+    // Tentukan string alasan akhir yang akan dikirim ke backend
+    const finalReason = selectedReason.startsWith("Lainnya") ? customReason : selectedReason;
+
+    if (selectedReason.startsWith("Lainnya") && !customReason.trim()) {
+      alert("Silakan isi teks alasan kustom terlebih dahulu.");
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+
+      // Bypass type check aman menggunakan (cancelOrder as any) jika context belum di-update parameter keduanya
+      await (cancelOrder as any)(order.id, finalReason);
+
+      alert("Pesanan Anda berhasil dibatalkan.");
+      setIsCancelModalOpen(false);
+
+      // Sinkronisasi state lokal instan agar UI langsung berubah ke mode CANCELLED
+      setOrder((prev: any) => prev ? {
+        ...prev,
+        status: 'CANCELLED',
+        cancelReason: finalReason,
+        updatedAt: new Date().toISOString()
+      } : null);
+    } catch (error: any) {
+      alert(error.message || "Gagal membatalkan pesanan.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   if (!isHydrated || loadingFetch) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
@@ -170,7 +209,7 @@ export default function OrderDetailPage() {
         <div className="text-center">
           <div className="text-6xl mb-4">😕</div>
           <p className="text-gray-800 font-bold">Pesanan tidak ditemukan</p>
-          <p className="text-xs text-gray-500 max-w-xs mt-1">ID pesanan salah atau rute pendaftaran database belum sinkron.</p>
+          <p className="text-xs text-gray-500 max-w-xs mt-1">ID pesanan salah atau belum sinkron.</p>
           <Link href="/customer/orders" className="text-blue-600 hover:underline mt-4 inline-block text-sm font-medium">
             Kembali ke Pesanan
           </Link>
@@ -199,7 +238,7 @@ export default function OrderDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-5">
-            
+
             {/* Status Tracker */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-6">Status Pesanan</h3>
@@ -209,21 +248,24 @@ export default function OrderDetailPage() {
                   <div>
                     <p className="font-bold text-red-700">Pesanan Dibatalkan</p>
                     <p className="text-xs text-red-500">Waktu: {new Date(order.updatedAt).toLocaleString('id-ID')}</p>
+                    {order.cancelReason && (
+                      <p className="text-xs text-red-600 mt-1 italic font-medium">Alasan: "{order.cancelReason}"</p>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between relative px-2">
                   <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-100 mx-10">
-                    <div 
-                      className="h-full bg-blue-600 transition-all duration-500" 
-                      style={{ width: `${Math.max(0, (statusIndex / (statusTimeline.length - 1)) * 100)}%` }} 
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-500"
+                      style={{ width: `${Math.max(0, (statusIndex / (statusTimeline.length - 1)) * 100)}%` }}
                     />
                   </div>
                   {statusTimeline.map((status, idx) => {
                     const passed = idx <= statusIndex;
                     const emojis: Record<string, string> = { PENDING: '📋', CONFIRMED: '✅', PROCESSING: '⚙️', SHIPPED: '🚚', DELIVERED: '📦' };
                     const labels: Record<string, string> = { PENDING: 'Menunggu', CONFIRMED: 'Konfirmasi', PROCESSING: 'Proses', SHIPPED: 'Kirim', DELIVERED: 'Selesai' };
-                    
+
                     return (
                       <div key={status} className="flex flex-col items-center relative z-10">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${passed ? 'bg-blue-600 shadow-lg shadow-blue-100 text-white' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
@@ -241,7 +283,7 @@ export default function OrderDetailPage() {
               {order.trackingNumber && (
                 <div className="mt-6 p-4 bg-indigo-50 rounded-xl flex items-center gap-4 border border-indigo-100">
                   <div className="p-2 bg-indigo-600 rounded-lg text-white">
-                      <Truck className="w-5 h-5" />
+                    <Truck className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Nomor Resi</p>
@@ -258,7 +300,7 @@ export default function OrderDetailPage() {
                   <AlertTriangle className="w-5 h-5" />
                   <h3 className="font-bold">Selesaikan Pembayaran</h3>
                 </div>
-                
+
                 <div className="space-y-3 mb-6">
                   {activeBanks.map(bank => (
                     <div key={bank.id} className="bg-white rounded-xl p-4 flex items-center gap-4 border border-amber-100">
@@ -279,34 +321,32 @@ export default function OrderDetailPage() {
                   <p className="text-3xl font-black text-blue-700">{formatCurrency(order.totalAmount)}</p>
                 </div>
 
-                {/* ================= SECTION UPLOAD DENGAN PREVIEW & PISAH BUTTON ================= */}
+                {/* SECTION UPLOAD */}
                 {!order.paymentProofUrl ? (
                   <div className="mt-5 space-y-3">
-                    <input 
-                      type="file" 
-                      id="payment-file" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      id="payment-file"
+                      className="hidden"
                       accept="image/*"
                       onChange={handleFileChange}
                     />
 
-                    <button 
-                      onClick={() => setShowUpload(!showUpload)} 
+                    <button
+                      onClick={() => setShowUpload(!showUpload)}
                       className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white py-3.5 rounded-xl font-bold hover:bg-amber-600 transition-all active:scale-[0.98]"
                     >
-                      <Upload className="w-4 h-4" /> 
+                      <Upload className="w-4 h-4" />
                       {showUpload ? 'Sembunyikan Menu Upload' : 'Upload Bukti Transfer'}
                     </button>
 
                     {showUpload && (
-                      <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm animate-in fade-in zoom-in duration-300 space-y-4">
-                        
-                        {/* Box Preview Gambar */}
+                      <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm space-y-4">
                         {previewUrl ? (
                           <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
-                            <img 
-                              src={previewUrl} 
-                              alt="Preview Bukti Transfer" 
+                            <img
+                              src={previewUrl}
+                              alt="Preview Bukti Transfer"
                               className="w-full h-auto max-h-64 object-contain rounded-lg"
                             />
                             <p className="text-xs text-gray-500 mt-2 font-medium truncate px-2">
@@ -321,20 +361,18 @@ export default function OrderDetailPage() {
                         )}
 
                         <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto pt-2">
-                          {/* Tombol 1: Pilih / Ganti File */}
-                          <button 
-                            onClick={() => document.getElementById('payment-file')?.click()} 
+                          <button
+                            onClick={() => document.getElementById('payment-file')?.click()}
                             disabled={uploading}
                             className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
                           >
                             {previewUrl ? '🔄 Ganti Foto' : '📂 Pilih Foto'}
                           </button>
 
-                          {/* Tombol 2: Kirim ke Cloudinary (Hanya aktif jika file sudah dipilih) */}
                           {previewUrl && (
-                            <button 
-                              onClick={handleUploadPayment} 
-                              disabled={uploading} 
+                            <button
+                              onClick={handleUploadPayment}
+                              disabled={uploading}
                               className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
                             >
                               {uploading ? (
@@ -360,7 +398,6 @@ export default function OrderDetailPage() {
                     <p className="text-sm font-bold">Bukti sudah diupload. Menunggu verifikasi admin.</p>
                   </div>
                 )}
-                {/* =============================================================================== */}
               </div>
             )}
 
@@ -368,28 +405,30 @@ export default function OrderDetailPage() {
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-4">Rincian Produk</h3>
               <div className="divide-y divide-gray-50">
-                  {order.items?.map((item: any) => (
+                {(order.items || []).map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 py-4">
-                      <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
-                        {item.image ? (
-                          <img 
-                            src={item.image} 
-                            alt={item.productName} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span>{item.productEmoji || '🥛'}</span>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                          <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
-                          <p className="text-xs text-gray-500 font-medium">{item.quantity} Unit x {formatCurrency(item.price)}</p>
-                      </div>
-                      <div className="text-right">
-                          <p className="font-bold text-gray-800 text-sm">{formatCurrency(item.price * item.quantity)}</p>
-                      </div>
+                    <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.productName}
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span>{item.productEmoji || '🥛'}</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
+                      <p className="text-xs text-gray-500 font-medium">{item.quantity} Unit x {formatCurrency(item.price)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-800 text-sm">{formatCurrency(item.price * item.quantity)}</p>
+                    </div>
                   </div>
-                  ))}
+                ))}
               </div>
             </div>
 
@@ -410,8 +449,8 @@ export default function OrderDetailPage() {
 
                 <div className="pt-2 border-t border-gray-50 mt-2">
                   <p className="text-sm text-gray-700 leading-relaxed">
-                    {typeof order.shippingAddress === 'string' 
-                      ? order.shippingAddress 
+                    {typeof order.shippingAddress === 'string'
+                      ? order.shippingAddress
                       : order.shippingAddress?.address || 'Alamat tidak ditemukan'}
                   </p>
                   <p className="text-sm text-gray-700 font-medium">
@@ -433,7 +472,7 @@ export default function OrderDetailPage() {
                 <CreditCard className="w-5 h-5 text-blue-600" />
                 <h3 className="font-bold text-gray-800">Ringkasan</h3>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="flex justify-between text-sm font-medium text-gray-500">
                   <span>Subtotal</span>
@@ -445,8 +484,8 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="pt-4 border-t border-dashed border-gray-200">
                   <div className="flex justify-between items-end">
-                      <span className="text-sm font-bold text-gray-800">Total Belanja</span>
-                      <span className="text-xl font-black text-blue-600">{formatCurrency(order.totalAmount)}</span>
+                    <span className="text-sm font-bold text-gray-800">Total Belanja</span>
+                    <span className="text-xl font-black text-blue-600">{formatCurrency(order.totalAmount)}</span>
                   </div>
                 </div>
               </div>
@@ -465,25 +504,112 @@ export default function OrderDetailPage() {
               </div>
 
               <div className="mt-8 flex flex-col gap-3">
-                  {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
-                      <button 
-                          onClick={() => { if(confirm('Batalkan pesanan ini?')) cancelOrder(order.id) }} 
-                          className="w-full py-3 border-2 border-red-100 text-red-500 rounded-2xl text-sm font-bold hover:bg-red-50 transition-colors"
-                      >
-                          Batalkan Pesanan
-                      </button>
-                  )}
-                  <Link 
-                      href="/customer/orders" 
-                      className="w-full py-3 bg-gray-900 text-white rounded-2xl text-sm font-bold text-center hover:bg-black transition-all shadow-lg shadow-gray-200"
+                {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
+                  <button
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="w-full py-3 border-2 border-red-100 text-red-500 rounded-2xl text-sm font-bold hover:bg-red-50 transition-colors"
                   >
-                      Kembali ke Daftar
-                  </Link>
+                    Batalkan Pesanan
+                  </button>
+                )}
+                <Link
+                  href="/customer/orders"
+                  className="w-full py-3 bg-gray-900 text-white rounded-2xl text-sm font-bold text-center hover:bg-black transition-all shadow-lg shadow-gray-200"
+                >
+                  Kembali ke Daftar
+                </Link>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ➕ MODAL DIALOG POP-UP FORM ALASAN PEMBATALAN SESUAI DESAIN BARU */}
+      {isCancelModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 transform transition-all scale-100">
+            {/* Header Modal */}
+            <div className="bg-red-50/50 p-6 pb-4 border-b border-gray-50 flex items-start gap-4">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-gray-800">Batalkan Pesanan</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Beritahu kami alasan pembatalan Anda sebelum mengonfirmasi.</p>
+              </div>
+            </div>
+
+            {/* Isi Form */}
+            <div className="p-6 space-y-4">
+              <label className="block text-sm font-bold text-gray-700">Pilih Alasan Utama:</label>
+              <div className="space-y-2">
+                {CANCEL_REASONS.map((reason, idx) => (
+                  <label
+                    key={idx}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedReason === reason
+                        ? 'border-blue-600 bg-blue-50/40 text-blue-900 font-medium'
+                        : 'border-gray-100 hover:bg-gray-50 text-gray-600'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value={reason}
+                      checked={selectedReason === reason}
+                      onChange={(e) => setSelectedReason(e.target.value)}
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm">{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Textarea muncul bersyarat jika memilih alasan 'Lainnya' */}
+              {selectedReason.startsWith("Lainnya") && (
+                <div className="space-y-1.5 animate-slideDown">
+                  <label className="block text-xs font-bold text-gray-500 uppercase">Tulis Alasan Kustom:</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Masukkan alasan pembatalan Anda secara detail di sini..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Tombol Aksi Kaki Modal */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCancelModalOpen(false)}
+                disabled={isCancelling}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Kembali
+              </button>
+              <button
+                type="button"
+                onClick={confirmCancelOrder}
+                disabled={isCancelling || (selectedReason.startsWith("Lainnya") && !customReason.trim())}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <span>Konfirmasi Batal</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </>
   );

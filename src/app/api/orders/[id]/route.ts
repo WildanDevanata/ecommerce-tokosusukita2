@@ -4,6 +4,46 @@ import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
+// ================= HELPERS: SAMAKAN FORMAT DENGAN FRONTEND =================
+const formatOrderResponse = (order: any) => ({
+  id: order.id,
+  userId: order.userId,
+  orderNumber: order.orderNumber,
+  totalAmount: order.totalAmount,
+  shippingCost: order.shippingCost,
+  status: order.status,
+  paymentStatus: order.paymentStatus,
+  paymentMethod: order.paymentMethod,
+  trackingNumber: order.trackingNumber,
+  courier: order.courier,
+  notes: order.notes,
+  paymentProofUrl: order.paymentProofUrl,
+  snapToken: order.snapToken || null, // 1. TAMBAHKAN SNAPTOKEN DI SINI
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+
+  items: order.items.map((item: any) => ({
+    id: item.id,
+    productId: item.productId,
+    productName: item.product?.name || "Produk",
+    quantity: item.quantity,
+    price: item.price,
+    image: item.product?.image || null,
+    productBgColor: (item.product as any)?.bgColor || "bg-gray-100",
+    productEmoji: "🥛",
+  })),
+
+  shippingAddress: {
+    recipientName: order.shippingRecipient,
+    phone: order.shippingPhone,
+    address: order.shippingAddress,
+    city: order.shippingCity,
+    province: order.shippingProvince,
+    postalCode: order.shippingPostalCode,
+  },
+});
+
+// ================= GET HANDLER =================
 export async function GET(
   req: Request,
   context: {
@@ -16,9 +56,7 @@ export async function GET(
     const { id } = await context.params;
 
     const order = await prisma.order.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
       include: {
         user: true,
         items: {
@@ -37,45 +75,8 @@ export async function GET(
       );
     }
 
-    const formattedOrder = {
-      id: order.id,
-      userId: order.userId,
-      orderNumber: order.orderNumber,
-      totalAmount: order.totalAmount,
-      shippingCost: order.shippingCost,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      paymentMethod: order.paymentMethod,
-      trackingNumber: order.trackingNumber,
-      courier: order.courier,
-      notes: order.notes,
-      paymentProofUrl: order.paymentProofUrl,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      
-      // --- PERBAIKAN: Sertakan image dan bgColor dari tabel product ---
-      items: order.items.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        productName: item.product?.name || "Produk",
-        quantity: item.quantity,
-        price: item.price,
-        image: item.product?.image || null, // URL Cloudinary agar muncul di detail
-        productBgColor: (item.product as any)?.bgColor || "bg-gray-100",
-        productEmoji: "🥛",
-      })),
-      
-      shippingAddress: {
-        recipientName: order.shippingRecipient,
-        phone: order.shippingPhone,
-        address: order.shippingAddress,
-        city: order.shippingCity,
-        province: order.shippingProvince,
-        postalCode: order.shippingPostalCode,
-      },
-    };
-
-    return NextResponse.json(formattedOrder);
+    // Gunakan helper format
+    return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
     console.error(error);
     return NextResponse.json(
@@ -85,6 +86,7 @@ export async function GET(
   }
 }
 
+// ================= PATCH HANDLER =================
 export async function PATCH(
   req: Request,
   context: {
@@ -97,7 +99,7 @@ export async function PATCH(
     const { id } = await context.params;
     const body = await req.json();
 
-    // 1. Validasi khusus jika ini adalah aksi pembatalan (CANCELLED)
+    // 1. Validasi pembatalan (CANCELLED)
     if (body.status === "CANCELLED") {
       const existingOrder = await prisma.order.findUnique({
         where: { id },
@@ -115,27 +117,34 @@ export async function PATCH(
       }
     }
 
-    // 2. Buat objek update secara dinamis untuk menghindari nilai 'undefined' masuk ke Prisma
+    // 2. Buat objek update secara dinamis
     const updateData: any = {};
-    
     if (body.status !== undefined) updateData.status = body.status;
     if (body.paymentStatus !== undefined) updateData.paymentStatus = body.paymentStatus;
     if (body.trackingNumber !== undefined) updateData.trackingNumber = body.trackingNumber;
     if (body.courier !== undefined) updateData.courier = body.courier;
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.paymentProofUrl !== undefined) updateData.paymentProofUrl = body.paymentProofUrl;
+    if (body.snapToken !== undefined) updateData.snapToken = body.snapToken;
 
-    // 3. Eksekusi update ke database
-    const order = await prisma.order.update({
+    // 3. Eksekusi update ke database & sertakan relasi lengkap
+    const updatedOrder = await prisma.order.update({
       where: { id },
       data: updateData,
+      include: {
+        user: true,
+        items: {
+          include: { product: true },
+        },
+      },
     });
 
-    // On-demand Revalidation agar cache langsung segar
+    // On-demand Revalidation
     revalidatePath("/customer/orders");
     revalidatePath(`/customer/orders/${id}`);
 
-    return NextResponse.json(order);
+    // 2. PERBAIKAN: Kembalikan data yang sudah di-format, jangan raw database data!
+    return NextResponse.json(formatOrderResponse(updatedOrder));
   } catch (error) {
     console.error(error);
     return NextResponse.json(
@@ -145,6 +154,7 @@ export async function PATCH(
   }
 }
 
+// ================= DELETE HANDLER =================
 export async function DELETE(
   req: Request,
   context: {
@@ -157,9 +167,7 @@ export async function DELETE(
     const { id } = await context.params;
 
     await prisma.order.delete({
-      where: {
-        id,
-      },
+      where: { id },
     });
 
     revalidatePath("/customer/orders");

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script'; // 1. IMPORT SCRIPT NEXT.JS
 import { MapPin, CreditCard, Truck, CheckCircle2 } from 'lucide-react';
 
 import Navbar from '@/components/sharing/navbar';
@@ -24,7 +25,7 @@ const formatRupiah = (value: number) => {
 // ================= PAGE =================
 export default function CheckoutPage() {
   const router = useRouter();
- const { cart, currentUser, bankAccounts, refreshOrders } = useApp();
+  const { cart, currentUser, bankAccounts, refreshOrders } = useApp();
 
   // State untuk memastikan komponen sudah ter-mount sempurna di client
   const [isHydrated, setIsHydrated] = useState(false);
@@ -115,18 +116,73 @@ export default function CheckoutPage() {
       }
 
       const order = await res.json();
-      
-      // ================= SINKRONISASI STATE GLOBAL =================
-      // Panggil fungsi bawaan dari appcontext untuk fetch ulang daftar order ke database
-      await refreshOrders();
-      // =============================================================
 
+      // Sync state global order
+      await refreshOrders();
+
+      // Hapus data keranjang lokal setelah order berhasil di-create
       localStorage.removeItem('cart');
-      
-      // Beri jeda tipis 100ms agar state context benar-benar selesai ter-render ulang
-      setTimeout(() => {
-        router.push(`/customer/orders/${order.id}`);
-      }, 100);
+
+      // 2. KONDISI JIKA USER MEMILIH MIDTRANS
+      if (paymentMethod === 'MIDTRANS') {
+        // Pastikan endpoint API backend Anda (/api/orders) sudah mereturn "snapToken"
+        // Cari bagian penanganan callback Midtrans di dalam fungsi handlePlaceOrder kamu, lalu sesuaikan:
+
+        if (order.snapToken && (window as any).snap) {
+          (window as any).snap.pay(order.snapToken, {
+            onSuccess: async function (result: any) {
+              console.log('Midtrans Success:', result);
+
+              try {
+                // Tembak langsung ke API detail order [id] yang sudah mendukung PATCH dinamis
+                const updateRes = await fetch(`/api/orders/${order.id}`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    paymentStatus: 'PAID',       // ✅ VALID (Sesuai Enum PaymentStatus)
+                    status: 'CONFIRMED',        // ✅ VALID (Sesuai Enum OrderStatus. Bisa pakai CONFIRMED atau PROCESSING tergantung alur tokomu)
+                  }),
+                });
+
+                if (!updateRes.ok) {
+                  console.error('Gagal memperbarui status di server backend');
+                }
+              } catch (updateErr) {
+                console.error('Terjadi error saat mengirim update status:', updateErr);
+              }
+
+              // Refresh data global context agar state diperbarui ke seluruh komponen aplikasi
+              await refreshOrders();
+
+              // Alihkan user ke halaman detail pesanan
+              router.push(`/customer/orders/${order.id}`);
+            },
+            onPending: function (result: any) {
+              console.log('Midtrans Pending:', result);
+              router.push(`/customer/orders/${order.id}`);
+            },
+            onError: function (result: any) {
+              console.error('Midtrans Error:', result);
+              alert('Pembayaran online gagal, silakan cek halaman pesanan Anda.');
+              router.push(`/customer/orders/${order.id}`);
+            },
+            onClose: function () {
+              router.push(`/customer/orders/${order.id}`);
+            },
+          });
+        } else {
+          // Fallback jika token tidak digenerate oleh backend
+          alert('Gagal memuat sistem pembayaran Midtrans, mengalihkan ke detail pesanan.');
+          router.push(`/customer/orders/${order.id}`);
+        }
+      } else {
+        // 3. JIKA METODE PEMBAYARAN MANUAL TRANSFER ATAU EWALLET LAINNYA
+        setTimeout(() => {
+          router.push(`/customer/orders/${order.id}`);
+        }, 100);
+      }
 
     } catch (err) {
       console.error(err);
@@ -138,27 +194,34 @@ export default function CheckoutPage() {
 
   const paymentMethods = [
     {
+      id: 'MIDTRANS',
+      label: 'QRIS (Midtrans) Automatis ',
+      desc: 'Kartu kredit, QRIS, Gopay, Virtual Account',
+      emoji: '💳',
+    },
+    {
       id: 'TRANSFER',
-      label: 'Transfer Bank',
+      label: 'Transfer Bank Manual',
       desc: 'Transfer ke rekening toko',
       emoji: '🏦',
     },
     {
-      id: 'MIDTRANS',
-      label: 'Bayar Online (Midtrans)',
-      desc: 'Kartu kredit, debit, dll',
-      emoji: '💳',
-    },
-    {
       id: 'EWALLET',
-      label: 'E-Wallet',
-      desc: 'GoPay, OVO, Dana',
+      label: 'E-Wallet Manual',
+      desc: 'GoPay, OVO, Dana (Verifikasi manual)',
       emoji: '📱',
     },
   ] as const;
 
   return (
     <>
+      {/* 4. LOAD SNAP.JS DARI MIDTRANS SANDBOX */}
+      <Script
+        src="https://app.sandbox.midtrans.com/snap/snap.js"
+        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+        strategy="lazyOnload"
+      />
+
       <Navbar />
 
       <main className="min-h-screen bg-gray-50">
@@ -217,11 +280,10 @@ export default function CheckoutPage() {
                     <button
                       key={c}
                       onClick={() => setCourier(c)}
-                      className={`py-2 px-3 rounded-xl border text-sm transition-colors ${
-                        courier === c
-                          ? 'border-blue-600 bg-blue-50 text-blue-600 font-medium'
-                          : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                      }`}
+                      className={`py-2 px-3 rounded-xl border text-sm transition-colors ${courier === c
+                        ? 'border-blue-600 bg-blue-50 text-blue-600 font-medium'
+                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                        }`}
                     >
                       {c}
                     </button>
@@ -243,11 +305,10 @@ export default function CheckoutPage() {
                   {paymentMethods.map((method) => (
                     <label
                       key={method.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                        paymentMethod === method.id
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-200'
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${paymentMethod === method.id
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-200'
+                        }`}
                     >
                       <input
                         type="radio"
@@ -255,9 +316,8 @@ export default function CheckoutPage() {
                         onChange={() => setPaymentMethod(method.id)}
                         className="sr-only"
                       />
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        paymentMethod === method.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
-                      }`} />
+                      <div className={`w-4 h-4 rounded-full border-2 ${paymentMethod === method.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                        }`} />
                       <span className="text-lg">{method.emoji}</span>
                       <div>
                         <p className="text-sm font-medium text-gray-800">{method.label}</p>
@@ -277,9 +337,8 @@ export default function CheckoutPage() {
                         .map((bank) => (
                           <label
                             key={bank.id}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${
-                              selectedBank === bank.id ? 'border-blue-600' : 'border-gray-200'
-                            }`}
+                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${selectedBank === bank.id ? 'border-blue-600' : 'border-gray-200'
+                              }`}
                           >
                             <input
                               type="radio"
@@ -287,9 +346,8 @@ export default function CheckoutPage() {
                               onChange={() => setSelectedBank(bank.id)}
                               className="sr-only"
                             />
-                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${
-                              selectedBank === bank.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
-                            }`} />
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${selectedBank === bank.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                              }`} />
                             <div className={`${bank.color || 'bg-blue-600'} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}>
                               {bank.bankName?.split(' ')[1]?.[0] || bank.bankName?.[0]}
                             </div>
@@ -315,9 +373,8 @@ export default function CheckoutPage() {
                         .map((wallet) => (
                           <label
                             key={wallet.id}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${
-                              selectedBank === wallet.id ? 'border-green-600' : 'border-gray-200'
-                            }`}
+                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${selectedBank === wallet.id ? 'border-green-600' : 'border-gray-200'
+                              }`}
                           >
                             <input
                               type="radio"
@@ -325,9 +382,8 @@ export default function CheckoutPage() {
                               onChange={() => setSelectedBank(wallet.id)}
                               className="sr-only"
                             />
-                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${
-                              selectedBank === wallet.id ? 'border-green-600 bg-green-600' : 'border-gray-300'
-                            }`} />
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${selectedBank === wallet.id ? 'border-green-600 bg-green-600' : 'border-gray-300'
+                              }`} />
                             <div className={`${wallet.color || 'bg-green-600'} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}>
                               {wallet.bankName?.[0]}
                             </div>
@@ -345,8 +401,8 @@ export default function CheckoutPage() {
 
                 {/* MIDTRANS */}
                 {paymentMethod === 'MIDTRANS' && (
-                  <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-700">
-                    💳 Anda akan diarahkan ke halaman pembayaran online Midtrans setelah pesanan dibuat.
+                  <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-700 font-medium">
+                    ⚡ Pop-up pembayaran instan Midtrans (QRIS, VA, Kartu Kredit) akan otomatis terbuka setelah Anda klik tombol "Buat Pesanan".
                   </div>
                 )}
 

@@ -248,7 +248,7 @@ export default function CheckoutPage() {
                     <MapPin className="w-5 h-5 text-blue-600" />
                     <h3 className="text-gray-800 font-bold">Alamat Pengiriman</h3>
                   </div>
-                  <Link href="/customer/profile" className="text-sm text-blue-600 hover:underline">Ubah</Link>
+                  <Link href="/customer/profile?tab=address" className="text-sm text-blue-600 hover:underline">Ubah</Link>
                 </div>
 
                 {address ? (
@@ -263,7 +263,7 @@ export default function CheckoutPage() {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-sm text-gray-500 mb-2">Belum ada alamat pengiriman</p>
-                    <Link href="/customer/profile" className="text-sm text-blue-600 hover:underline">Tambah Alamat</Link>
+                    <Link href="/customer/profile?tab=address" className="text-sm text-blue-600 hover:underline">Tambah Alamat</Link>
                   </div>
                 )}
               </div>

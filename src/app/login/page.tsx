@@ -21,6 +21,8 @@ import {
 import {
   useApp,
 } from '@/store/appcontext';
+import Navbar from '@/components/sharing/navbar';
+import Footer from '@/components/sharing/footer';
 
 export default function LoginPage() {
   const {
@@ -77,50 +79,50 @@ export default function LoginPage() {
   // ================= LOGIN =================
 
   const handleSubmit = async (
-  e: React.FormEvent
-) => {
-  e.preventDefault();
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
 
-  try {
-    setLoading(true);
-    setError('');
+    try {
+      setLoading(true);
+      setError('');
 
-    const res = await fetch(
-      '/api/auth/login',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+      const res = await fetch(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.message);
+        return;
       }
-    );
 
-    const data = await res.json();
+      login(data.user);
 
-    if (!data.success) {
-      setError(data.message);
-      return;
+      if (data.user.role === 'ADMIN') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/admin/dash/profile');
+      }
+    } catch (error) {
+      console.log(error);
+      setError('Terjadi kesalahan');
+    } finally {
+      setLoading(false);
     }
-
-    login(data.user);
-
-    if (data.user.role === 'ADMIN') {
-      router.push('/admin/dashboard');
-    } else {
-      router.push('/admin/dash/profile');
-    }
-  } catch (error) {
-    console.log(error);
-    setError('Terjadi kesalahan');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // ================= QUICK LOGIN =================
 
@@ -153,19 +155,25 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <>
+      <Navbar />
+      {/* PERUBAHAN DI SINI:
+        - Mengubah `items-center` menjadi `items-start`
+        - Menambahkan `pt-24` (atau `pb-12`) agar posisi card pas di tengah agak ke atas
+      */}
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-start justify-center pt-24 pb-12 p-4">
+        <div className="w-full max-w-md">
 
-        {/* LOGO */}
-        <div className="text-center mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center"
-          >
-            <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
-              🍼
-            </div>
-          </Link>
+          {/* LOGO */}
+          <div className="text-center mb-8">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center"
+            >
+              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                🍼
+              </div>
+            </Link>
 
           <h1 className="text-2xl font-bold text-gray-800 mt-4">
             Selamat Datang!
@@ -346,5 +354,7 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    <Footer />
+    </>
   );
 }

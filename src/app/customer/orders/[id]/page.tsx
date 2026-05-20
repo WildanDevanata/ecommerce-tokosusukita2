@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Menggunakan optimasi gambar Next.js
+import Image from 'next/image'; 
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Upload, CheckCircle2, Truck,
@@ -15,7 +15,6 @@ import Script from 'next/script';
 
 const statusTimeline = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
 
-// 📋 DAFTAR ALASAN UTAMA PEMBATALAN PESANAN
 const CANCEL_REASONS = [
   "Ingin mengubah alamat pengiriman",
   "Salah memilih varian produk / jumlah unit",
@@ -34,7 +33,6 @@ export default function OrderDetailPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // ➕ State Baru untuk Modal Pembatalan Sesuai Desain Baru
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedReason, setSelectedReason] = useState(CANCEL_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
@@ -48,10 +46,8 @@ export default function OrderDetailPage() {
   const [loadingFetch, setLoadingFetch] = useState(true);
   const [loadingMidtrans, setLoadingMidtrans] = useState(false);
 
-  // 1. Sinkronisasi Hydration & Data Fetching Fallback
   useEffect(() => {
     setIsHydrated(true);
-
     const foundInContext = orders.find(o => o.id === id);
 
     if (foundInContext) {
@@ -64,22 +60,20 @@ export default function OrderDetailPage() {
           if (!res.ok) throw new Error('Gagal memuat');
           return res.json();
         })
-          .then((data) => {
-            if (data) setOrder(data);
-          })
-          .catch((err) => console.error("Fallback fetch error:", err))
-          .finally(() => setLoadingFetch(false));
+        .then((data) => {
+          if (data) setOrder(data);
+        })
+        .catch((err) => console.error("Fallback fetch error:", err))
+        .finally(() => setLoadingFetch(false));
     }
   }, [id, orders]);
 
-  // Cleanup object URL preview
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
 
-  // --- HELPER FUNCTIONS ---
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -100,13 +94,11 @@ export default function OrderDetailPage() {
     return map[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
   };
 
-  // --- LOGIKA MIDTRANS ---
   const handleMidtransPayment = async () => {
     if (!order) return;
     try {
       setLoadingMidtrans(true);
       
-      // 1. Ambil snapToken dari API backend Anda
       const res = await fetch(`/api/payments/midtrans/token`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
@@ -115,14 +107,32 @@ export default function OrderDetailPage() {
       
       if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
       
-      const data = await res.json(); // Mengambil { snapToken: "..." } dari backend
+      const data = await res.json();
       
-      // 2. Panggil pop-up Midtrans Snap menggunakan token tersebut
       if (window && (window as any).snap) {
         (window as any).snap.pay(data.snapToken, {
-          onSuccess: function(result: any){
+          onSuccess: async function(result: any){
             alert("Pembayaran berhasil!");
-            router.refresh(); // Segarkan halaman untuk memperbarui status pesanan
+            
+            try {
+              const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (updateRes.ok) {
+                setOrder((prev: any) => prev ? { 
+                  ...prev, 
+                  status: 'CONFIRMED',
+                  paymentStatus: 'PAID', 
+                  updatedAt: new Date().toISOString()
+                } : null);
+              }
+            } catch (err) {
+              console.error("Gagal memperbarui status order di DB:", err);
+            }
+
+            router.refresh(); 
           },
           onPending: function(result: any){
             alert("Menunggu pembayaran Anda.");
@@ -147,7 +157,6 @@ export default function OrderDetailPage() {
     }
   };
 
-  // --- LOGIKA UPLOAD ---
   const uploadToCloudinary = async (file: File) => {
     const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dwjuyd3xj";
     const PRESET_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET || "ml_default";
@@ -163,14 +172,7 @@ export default function OrderDetailPage() {
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        if (data.error?.message.includes("Unknown API key")) {
-          throw new Error(`Cloudinary tidak mengenali preset "${PRESET_NAME}". Pastikan preset ini sudah dibuat sebagai 'Unsigned'.`);
-        }
-        throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
-      }
-
+      if (!res.ok) throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
       return data.secure_url;
     } catch (error: any) {
       throw error;
@@ -210,7 +212,6 @@ export default function OrderDetailPage() {
     }
   };
 
-  // --- LOGIKA FUNGSIONAL PEMBATALAN PESANAN ---
   const confirmCancelOrder = async () => {
     const finalReason = selectedReason.startsWith("Lainnya") ? customReason : selectedReason;
 
@@ -265,20 +266,16 @@ export default function OrderDetailPage() {
 
   const statusIndex = statusTimeline.indexOf(order.status);
   const activeBanks = bankAccounts?.filter(b => b.isActive && b.type === 'BANK') || [];
-  
-  // Cek apakah metode pembayaran adalah Midtrans
   const isMidtrans = order.paymentMethod?.toUpperCase().includes('MIDTRANS');
 
   return (
   <>
-    {/* Load Midtrans Snap (Ganti ke https://app.midtrans.com/snap/snap.js jika sudah Production) */}
     <Script 
       src="https://app.sandbox.midtrans.com/snap/snap.js" 
       data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
     />
     <Navbar />
       <div className="max-w-4xl mx-auto py-8 px-4">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -354,7 +351,6 @@ export default function OrderDetailPage() {
                   <h3 className="font-bold">Selesaikan Pembayaran</h3>
                 </div>
 
-                {/* Sembunyikan instruksi akun bank jika pembayarannya otomatis lewat Midtrans */}
                 {!isMidtrans && (
                   <div className="space-y-3 mb-6">
                     {activeBanks.map(bank => (
@@ -377,7 +373,6 @@ export default function OrderDetailPage() {
                   <p className="text-3xl font-black text-blue-700">{formatCurrency(order.totalAmount)}</p>
                 </div>
 
-                {/* CONDITION RENDER: MIDTRANS BUTTON VS MANUAL UPLOAD */}
                 {isMidtrans ? (
                   <div className="space-y-2">
                     <button
@@ -400,7 +395,6 @@ export default function OrderDetailPage() {
                     <p className="text-[11px] text-center text-gray-500">Anda akan diarahkan ke gerbang pembayaran aman Midtrans.</p>
                   </div>
                 ) : (
-                  /* SECTION UPLOAD MANUAL */
                   !order.paymentProofUrl ? (
                     <div className="space-y-3">
                       <input
@@ -423,9 +417,13 @@ export default function OrderDetailPage() {
                         <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm space-y-4">
                           {previewUrl ? (
                             <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
-                              <img
+                              {/* 🛠️ Diperbaiki menggunakan komponen Image Next.js unoptimized khusus Local Blob URL */}
+                              <Image
                                 src={previewUrl}
                                 alt="Preview Bukti Transfer"
+                                width={300}
+                                height={250}
+                                unoptimized
                                 className="w-full h-auto max-h-64 object-contain rounded-lg"
                               />
                               <p className="text-xs text-gray-500 mt-2 font-medium truncate px-2">
@@ -570,13 +568,24 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
+              {/* 🛠️ BAGIAN UTAMA YANG DIPERBAIKI: Status Order & Status Pembayaran Dipisahkan */}
               <div className="mt-8 space-y-3">
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
-                  <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase">Status Order</span>
                   <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase ${getStatusInfo(order.status).color}`}>
                     {getStatusInfo(order.status).label}
                   </span>
                 </div>
+                
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Pembayaran</span>
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase ${
+                    order.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {order.paymentStatus || 'PENDING'}
+                  </span>
+                </div>
+
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                   <span className="text-xs font-bold text-gray-400 uppercase">Metode</span>
                   <span className="text-xs font-bold text-gray-700">{order.paymentMethod || 'BANK TRANSFER'}</span>
@@ -604,11 +613,10 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ➕ MODAL DIALOG POP-UP FORM ALASAN PEMBATALAN SESUAI DESAIN BARU */}
+      {/* MODAL DIALOG POP-UP FORM ALASAN PEMBATALAN */}
       {isCancelModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 transform transition-all scale-100">
-            {/* Header Modal */}
             <div className="bg-red-50/50 p-6 pb-4 border-b border-gray-50 flex items-start gap-4">
               <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -619,7 +627,6 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Isi Form */}
             <div className="p-6 space-y-4">
               <label className="block text-sm font-bold text-gray-700">Pilih Alasan Utama:</label>
               <div className="space-y-2">
@@ -659,7 +666,6 @@ export default function OrderDetailPage() {
               )}
             </div>
 
-            {/* Tombol Aksi Kaki Modal */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
               <button
                 type="button"
@@ -675,21 +681,13 @@ export default function OrderDetailPage() {
                 disabled={isCancelling || (selectedReason.startsWith("Lainnya") && !customReason.trim())}
                 className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >
-                {isCancelling ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Memproses...</span>
-                  </>
-                ) : (
-                  <span>Konfirmasi Batal</span>
-                )}
+                {isCancelling ? 'Membatalkan...' : 'Konfirmasi Batal'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <Footer />
-    </>
+    <Footer />
+  </>
   );
 }

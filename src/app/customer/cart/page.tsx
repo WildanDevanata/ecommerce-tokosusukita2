@@ -40,10 +40,8 @@ export default function CartPage() {
     0
   );
 
-  const shippingCost =
-    cartTotal >= 200000 ? 0 : 25000;
-
-  const total = cartTotal + shippingCost;
+  // Perubahan: Total di halaman ini murni total harga item belanjaan saja
+  const total = cartTotal;
 
   // ================= EMPTY =================
 
@@ -117,7 +115,7 @@ export default function CartPage() {
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2 rounded-2xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
               <Truck className="h-4 w-4" />
-              Gratis ongkir min. Rp200rb
+              Dukung Cek Ongkir Instan
             </div>
 
             <div className="flex items-center gap-2 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
@@ -157,7 +155,7 @@ export default function CartPage() {
                     <div className="min-w-0">
                       <h2 className="line-clamp-2 text-lg font-bold text-gray-800">
                         {item.name}
-                      </h2>
+                      </h2> 
 
                       <p className="mt-1 text-sm text-gray-400">
                         {(item as any)
@@ -291,7 +289,7 @@ export default function CartPage() {
               <div className="space-y-4 rounded-3xl bg-gray-50 p-5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">
-                    Subtotal
+                    Total Item Belanja
                   </span>
 
                   <span className="font-semibold text-gray-800">
@@ -299,41 +297,10 @@ export default function CartPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">
-                    Ongkos Kirim
-                  </span>
-
-                  <span
-                    className={
-                      shippingCost === 0
-                        ? 'font-bold text-green-600'
-                        : 'font-semibold text-gray-800'
-                    }
-                  >
-                    {shippingCost === 0
-                      ? 'GRATIS'
-                      : formatRupiah(
-                          shippingCost
-                        )}
-                  </span>
-                </div>
-
-                {cartTotal < 200000 && (
-                  <div className="rounded-2xl bg-blue-100 px-4 py-3 text-xs font-medium text-blue-700">
-                    💡 Tambah belanja{' '}
-                    {formatRupiah(
-                      200000 - cartTotal
-                    )}{' '}
-                    lagi untuk mendapatkan
-                    gratis ongkir.
-                  </div>
-                )}
-
                 <div className="border-t border-dashed border-gray-200 pt-4">
                   <div className="flex items-center justify-between">
                     <span className="text-base font-bold text-gray-800">
-                      Total Pembayaran
+                      Subtotal
                     </span>
 
                     <span className="text-3xl font-black text-blue-700">
@@ -341,6 +308,10 @@ export default function CartPage() {
                     </span>
                   </div>
                 </div>
+                
+                <p className="text-[11px] text-gray-400 text-center italic mt-2">
+                  *Ongkos kirim akan dihitung otomatis saat di halaman pembayaran.
+                </p>
               </div>
 
               {/* ACTION */}

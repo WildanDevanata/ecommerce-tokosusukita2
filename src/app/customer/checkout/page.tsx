@@ -3,17 +3,38 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script'; // 1. IMPORT SCRIPT NEXT.JS
-import { MapPin, CreditCard, Truck, CheckCircle2 } from 'lucide-react';
+import Script from 'next/script';
+
+import {
+  MapPin,
+  CreditCard,
+  CheckCircle2,
+} from 'lucide-react';
 
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
+
+import CourierSelect from '@/components/customer/CourierSelect';
+import OngkirResult from '@/components/customer/OngkirResult';
+
 import { useApp } from '@/store/appcontext';
 
-// ================= TYPES =================
-type PaymentMethod = 'TRANSFER' | 'MIDTRANS' | 'EWALLET';
+import type {
+  Courier,
+  CourierResult,
+  SelectedShipping,
+} from '@/lib/types';
+import citiesData from '@/lib/cities.json'; // Impor langsung
 
+const courierMap: Record<string, string> = {
+  'JNE': 'jne',
+  'SiCepat': 'sicepat',
+  'J&T': 'jnt',
+  'TIKI': 'tiki',
+  'POS': 'pos'
+};
 // ================= HELPERS =================
+
 const formatRupiah = (value: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -22,80 +43,218 @@ const formatRupiah = (value: number) => {
   }).format(value);
 };
 
-// ================= PAGE =================
+// ================= TYPES =================
+
+type PaymentMethod =
+  | 'TRANSFER'
+  | 'MIDTRANS'
+  | 'EWALLET';
+
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, currentUser, bankAccounts, refreshOrders } = useApp();
 
-  // State untuk memastikan komponen sudah ter-mount sempurna di client
-  const [isHydrated, setIsHydrated] = useState(false);
+  const {
+    cart,
+    currentUser,
+    bankAccounts,
+    refreshOrders,
+  } = useApp();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFER');
-  const [selectedBank, setSelectedBank] = useState('');
-  const [courier, setCourier] = useState('JNE');
+  // ================= STATE =================
+
+  const [isHydrated, setIsHydrated] =
+    useState(false);
+
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>('TRANSFER');
+
+  const [selectedBank, setSelectedBank] =
+    useState('');
+
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  // 1. Pastikan hydration selesai (menghindari ketidaksinkronan server vs client)
+  const [loading, setLoading] =
+    useState(false);
+
+  // ================= ONGKIR =================
+
+  const [courier, setCourier] =
+    useState<Courier>('jne');
+
+  const [loadingOngkir, setLoadingOngkir] =
+    useState(false);
+
+  const [ongkirResults, setOngkirResults] =
+    useState<CourierResult[]>([]);
+
+  const [selectedShipping, setSelectedShipping] =
+    useState<SelectedShipping | null>(null);
+
+  // ================= HYDRATE =================
+
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  // 2. Redirect hanya berjalan jika aplikasi sudah ter-hydrated dan data cart dipastikan kosong asli
+  // ================= REDIRECT =================
+
   useEffect(() => {
-    if (isHydrated && cart && cart.length === 0) {
+    if (
+      isHydrated &&
+      cart &&
+      cart.length === 0
+    ) {
       router.push('/customer/cart');
     }
   }, [cart, isHydrated, router]);
 
-  // Tampilkan layar loading ringan jika data appcontext / local storage belum siap dimuat
+  // ================= ADDRESS =================
+
+  const address =
+    currentUser?.addresses?.find(
+      (a) => a.isDefault
+    ) || currentUser?.addresses?.[0];
+
+  // ================= FETCH ONGKIR =================
+
+  // Di dalam CheckoutPage.tsx
+// ================= FETCH ONGKIR =================
+// Di dalam CheckoutPage.tsx
+// ================= FETCH ONGKIR =================
+useEffect(() => {
+  async function fetchOngkir() {
+    // Pastikan courier ada dan ada di dalam mapping kita
+    if (!address?.city || !courier || !courierMap[courier]) return;
+
+    const foundCity = citiesData.find(
+      (c) => c.city_name.toLowerCase().trim() === address.city.toLowerCase().trim()
+    );
+
+    if (!foundCity) {
+      console.error("Kota tidak ditemukan di data lokal:", address.city);
+      return;
+    }
+
+    try {
+      setLoadingOngkir(true);
+      
+      // Mengambil kode kecil (jne, tiki, dll) berdasarkan pilihan user
+      const courierCode = courierMap[courier]; 
+
+      const res = await fetch('/api/rajaongkir/cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: "224", // Magetan
+          destination: foundCity.city_id,
+          courier: courierCode, // Sekarang variabel ini sudah terdefinisi
+          weight: 1000,
+        }),
+      });
+
+      const result = await res.json(); 
+      
+      if (!res.ok) throw new Error(result.meta?.message || 'Gagal ambil ongkir');
+      
+      setOngkirResults(result.data || []);
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingOngkir(false);
+    }
+  }
+
+  fetchOngkir();
+}, [address?.city, courier]); // Dependencies sudah benar
+
+  // ================= LOADING =================
+
   if (!isHydrated || !cart) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2" />
-        <p className="text-sm text-gray-500 font-medium">Memuat data checkout...</p>
+
+        <p className="text-sm text-gray-500 font-medium">
+          Memuat data checkout...
+        </p>
       </div>
     );
   }
 
-  // Jika setelah loading selesai ternyata cart kosong, cegah render sisa komponen agar tidak crash
-  if (cart.length === 0) {
-    return null;
-  }
+  if (cart.length === 0) return null;
 
   // ================= CALCULATIONS =================
-  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const shippingCost = cartTotal >= 200000 ? 0 : 25000;
+
+  const cartTotal = cart.reduce(
+    (total, item) =>
+      total + item.price * item.quantity,
+    0
+  );
+
+  const shippingCost =
+    selectedShipping?.cost || 0;
+
   const total = cartTotal + shippingCost;
 
-  const activeBanks = bankAccounts ? bankAccounts.filter((b) => b.isActive) : [];
+  const activeBanks = bankAccounts
+    ? bankAccounts.filter((b) => b.isActive)
+    : [];
 
-  const address =
-    currentUser?.addresses?.find((a) => a.isDefault) ||
-    currentUser?.addresses?.[0];
+  // ================= PLACE ORDER =================
 
-  // ================= HANDLER =================
   const handlePlaceOrder = async () => {
     if (!currentUser || !address) return;
+
+    if (!selectedShipping) {
+      alert(
+        'Pilih layanan pengiriman terlebih dahulu'
+      );
+      return;
+    }
 
     try {
       setLoading(true);
 
       const payload = {
         userId: currentUser.id,
+
         totalAmount: total,
+
         shippingCost,
+
         paymentMethod,
-        courier,
+
+        courier:
+          selectedShipping.courier.toUpperCase(),
+
+        shippingService:
+          selectedShipping.service,
+
+        shippingEtd:
+          selectedShipping.etd,
+
         notes,
+
         paymentStatus: 'PENDING',
+
         status: 'PENDING',
-        shippingRecipient: address.recipientName,
+
+        shippingRecipient:
+          address.recipientName,
+
         shippingPhone: address.phone,
+
         shippingAddress: address.address,
+
         shippingCity: address.city,
-        shippingProvince: address.province,
-        shippingPostalCode: address.postalCode,
+
+        shippingProvince:
+          address.province,
+
+        shippingPostalCode:
+          address.postalCode,
+
         items: cart.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
@@ -106,119 +265,136 @@ export default function CheckoutPage() {
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+            'application/json',
         },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        throw new Error('Gagal membuat pesanan');
+        throw new Error(
+          'Gagal membuat pesanan'
+        );
       }
 
       const order = await res.json();
 
-      // Sync state global order
       await refreshOrders();
 
-      // Hapus data keranjang lokal setelah order berhasil di-create
       localStorage.removeItem('cart');
 
-      // 2. KONDISI JIKA USER MEMILIH MIDTRANS
+      // ================= MIDTRANS =================
+
       if (paymentMethod === 'MIDTRANS') {
-        // Pastikan endpoint API backend Anda (/api/orders) sudah mereturn "snapToken"
-        // Cari bagian penanganan callback Midtrans di dalam fungsi handlePlaceOrder kamu, lalu sesuaikan:
-
-        if (order.snapToken && (window as any).snap) {
-          (window as any).snap.pay(order.snapToken, {
-            onSuccess: async function (result: any) {
-              console.log('Midtrans Success:', result);
-
-              try {
-                // Tembak langsung ke API detail order [id] yang sudah mendukung PATCH dinamis
-                const updateRes = await fetch(`/api/orders/${order.id}`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    paymentStatus: 'PAID',       // ✅ VALID (Sesuai Enum PaymentStatus)
-                    status: 'CONFIRMED',        // ✅ VALID (Sesuai Enum OrderStatus. Bisa pakai CONFIRMED atau PROCESSING tergantung alur tokomu)
-                  }),
-                });
-
-                if (!updateRes.ok) {
-                  console.error('Gagal memperbarui status di server backend');
+        if (
+          order.snapToken &&
+          (window as any).snap
+        ) {
+          (window as any).snap.pay(
+            order.snapToken,
+            {
+              onSuccess: async () => {
+                try {
+                  await fetch(
+                    `/api/orders/${order.id}`,
+                    {
+                      method: 'PATCH',
+                      headers: {
+                        'Content-Type':
+                          'application/json',
+                      },
+                      body: JSON.stringify({
+                        paymentStatus: 'PAID',
+                        status: 'CONFIRMED',
+                      }),
+                    }
+                  );
+                } catch (updateErr) {
+                  console.error(updateErr);
                 }
-              } catch (updateErr) {
-                console.error('Terjadi error saat mengirim update status:', updateErr);
-              }
 
-              // Refresh data global context agar state diperbarui ke seluruh komponen aplikasi
-              await refreshOrders();
+                await refreshOrders();
 
-              // Alihkan user ke halaman detail pesanan
-              router.push(`/customer/orders/${order.id}`);
-            },
-            onPending: function (result: any) {
-              console.log('Midtrans Pending:', result);
-              router.push(`/customer/orders/${order.id}`);
-            },
-            onError: function (result: any) {
-              console.error('Midtrans Error:', result);
-              alert('Pembayaran online gagal, silakan cek halaman pesanan Anda.');
-              router.push(`/customer/orders/${order.id}`);
-            },
-            onClose: function () {
-              router.push(`/customer/orders/${order.id}`);
-            },
-          });
+                router.push(
+                  `/customer/orders/${order.id}`
+                );
+              },
+
+              onPending: () => {
+                router.push(
+                  `/customer/orders/${order.id}`
+                );
+              },
+
+              onError: () => {
+                alert(
+                  'Pembayaran gagal'
+                );
+
+                router.push(
+                  `/customer/orders/${order.id}`
+                );
+              },
+
+              onClose: () => {
+                router.push(
+                  `/customer/orders/${order.id}`
+                );
+              },
+            }
+          );
         } else {
-          // Fallback jika token tidak digenerate oleh backend
-          alert('Gagal memuat sistem pembayaran Midtrans, mengalihkan ke detail pesanan.');
-          router.push(`/customer/orders/${order.id}`);
+          alert(
+            'Gagal memuat Midtrans'
+          );
         }
       } else {
-        // 3. JIKA METODE PEMBAYARAN MANUAL TRANSFER ATAU EWALLET LAINNYA
-        setTimeout(() => {
-          router.push(`/customer/orders/${order.id}`);
-        }, 100);
+        router.push(
+          `/customer/orders/${order.id}`
+        );
       }
-
     } catch (err) {
       console.error(err);
+
       alert('Gagal membuat pesanan');
     } finally {
       setLoading(false);
     }
   };
 
+  // ================= PAYMENT METHODS =================
+
   const paymentMethods = [
     {
       id: 'MIDTRANS',
-      label: 'QRIS (Midtrans) Automatis ',
-      desc: 'Kartu kredit, QRIS, Gopay, Virtual Account',
+      label: 'QRIS (Midtrans)',
+      desc: 'QRIS & VA',
       emoji: '💳',
     },
+
     {
       id: 'TRANSFER',
-      label: 'Transfer Bank Manual',
-      desc: 'Transfer ke rekening toko',
+      label: 'Transfer Bank',
+      desc: 'Transfer manual',
       emoji: '🏦',
     },
+
     {
       id: 'EWALLET',
-      label: 'E-Wallet Manual',
-      desc: 'GoPay, OVO, Dana (Verifikasi manual)',
+      label: 'E-Wallet',
+      desc: 'OVO / Dana / GoPay',
       emoji: '📱',
     },
   ] as const;
 
   return (
     <>
-      {/* 4. LOAD SNAP.JS DARI MIDTRANS SANDBOX */}
       <Script
         src="https://app.sandbox.midtrans.com/snap/snap.js"
-        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+        data-client-key={
+          process.env
+            .NEXT_PUBLIC_MIDTRANS_CLIENT_KEY
+        }
         strategy="lazyOnload"
       />
 
@@ -226,273 +402,264 @@ export default function CheckoutPage() {
 
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-4xl mx-auto py-8 px-4">
-          {/* Breadcrumb */}
+
+          {/* HEADER */}
+
           <div className="mb-6">
             <nav className="text-sm text-gray-500 mb-2">
-              <Link href="/" className="hover:text-blue-600">Beranda</Link>
-              <span className="mx-2">/</span >
-              <Link href="/customer/cart" className="hover:text-blue-600">Keranjang</Link>
-              <span className="mx-2">/</span >
-              <span className="text-gray-800">Checkout</span>
+              <Link
+                href="/"
+                className="hover:text-blue-600"
+              >
+                Beranda
+              </Link>
+
+              <span className="mx-2">/</span>
+
+              <Link
+                href="/customer/cart"
+                className="hover:text-blue-600"
+              >
+                Keranjang
+              </Link>
+
+              <span className="mx-2">/</span>
+
+              <span className="text-gray-800">
+                Checkout
+              </span>
             </nav>
-            <h1 className="text-3xl font-black text-gray-800">Checkout</h1>
+
+            <h1 className="text-3xl font-black text-gray-800">
+              Checkout
+            </h1>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT SIDE */}
+
+            {/* LEFT */}
+
             <div className="lg:col-span-2 space-y-5">
+
               {/* ADDRESS */}
+
               <div className="bg-white rounded-2xl border border-gray-100 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-5 h-5 text-blue-600" />
-                    <h3 className="text-gray-800 font-bold">Alamat Pengiriman</h3>
+
+                    <h3 className="text-gray-800 font-bold">
+                      Alamat Pengiriman
+                    </h3>
                   </div>
                   <Link href="/customer/profile?tab=address" className="text-sm text-blue-600 hover:underline">Ubah</Link>
                 </div>
 
                 {address ? (
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
-                    <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Utama</span>
-                    <p className="font-medium text-gray-800 mt-2">{address.recipientName}</p>
-                    <p className="text-sm text-gray-600">{address.phone}</p>
+                    <p className="font-medium text-gray-800">
+                      {address.recipientName}
+                    </p>
+
+                    <p className="text-sm text-gray-600">
+                      {address.phone}
+                    </p>
+
                     <p className="text-sm text-gray-600 mt-1">
-                      {address.address}, {address.city}, {address.province} {address.postalCode}
+                      {address.address},{' '}
+                      {address.city},{' '}
+                      {address.province}
                     </p>
                   </div>
                 ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-500 mb-2">Belum ada alamat pengiriman</p>
-                    <Link href="/customer/profile?tab=address" className="text-sm text-blue-600 hover:underline">Tambah Alamat</Link>
-                  </div>
+                  <p className="text-sm text-red-500">
+                    Belum ada alamat
+                  </p>
                 )}
               </div>
 
               {/* COURIER */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Truck className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-gray-800 font-bold">Pilih Kurir</h3>
-                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {['JNE', 'SiCepat', 'J&T', 'Pos Indonesia'].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setCourier(c)}
-                      className={`py-2 px-3 rounded-xl border text-sm transition-colors ${courier === c
-                        ? 'border-blue-600 bg-blue-50 text-blue-600 font-medium'
-                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                        }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h3 className="font-bold text-gray-800 mb-4">
+                  Pilih Kurir
+                </h3>
+
+                <CourierSelect
+                  selected={courier}
+                  onChange={(value) => {
+                    setCourier(value);
+                    setSelectedShipping(null);
+                  }}
+                />
+
+                <div className="mt-5">
+                  <OngkirResult
+                    results={ongkirResults}
+                    selected={selectedShipping}
+                    onSelect={
+                      setSelectedShipping
+                    }
+                    loading={loadingOngkir}
+                  />
                 </div>
-                <p className="text-xs text-gray-500 mt-3">
-                  Estimasi 2-4 hari kerja • {formatRupiah(shippingCost)}
-                </p>
               </div>
 
               {/* PAYMENT */}
+
               <div className="bg-white rounded-2xl border border-gray-100 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <CreditCard className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-gray-800 font-bold">Metode Pembayaran</h3>
+
+                  <h3 className="font-bold text-gray-800">
+                    Metode Pembayaran
+                  </h3>
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  {paymentMethods.map((method) => (
-                    <label
-                      key={method.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${paymentMethod === method.id
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-200'
+                <div className="space-y-2">
+                  {paymentMethods.map(
+                    (method) => (
+                      <label
+                        key={method.id}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${
+                          paymentMethod ===
+                          method.id
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-gray-200'
                         }`}
-                    >
-                      <input
-                        type="radio"
-                        checked={paymentMethod === method.id}
-                        onChange={() => setPaymentMethod(method.id)}
-                        className="sr-only"
-                      />
-                      <div className={`w-4 h-4 rounded-full border-2 ${paymentMethod === method.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
-                        }`} />
-                      <span className="text-lg">{method.emoji}</span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{method.label}</p>
-                        <p className="text-xs text-gray-500">{method.desc}</p>
-                      </div>
-                    </label>
-                  ))}
+                      >
+                        <input
+                          type="radio"
+                          checked={
+                            paymentMethod ===
+                            method.id
+                          }
+                          onChange={() =>
+                            setPaymentMethod(
+                              method.id
+                            )
+                          }
+                          className="sr-only"
+                        />
+
+                        <span className="text-xl">
+                          {method.emoji}
+                        </span>
+
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">
+                            {method.label}
+                          </p>
+
+                          <p className="text-xs text-gray-500">
+                            {method.desc}
+                          </p>
+                        </div>
+                      </label>
+                    )
+                  )}
                 </div>
 
-                {/* TRANSFER BANK */}
-                {paymentMethod === 'TRANSFER' && (
-                  <div className="bg-blue-50 rounded-xl p-4">
-                    <p className="text-sm font-medium text-blue-800 mb-3">Pilih Rekening Tujuan:</p>
-                    <div className="space-y-2">
-                      {activeBanks
-                        .filter((b) => b.type === 'BANK')
-                        .map((bank) => (
-                          <label
-                            key={bank.id}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${selectedBank === bank.id ? 'border-blue-600' : 'border-gray-200'
-                              }`}
-                          >
-                            <input
-                              type="radio"
-                              checked={selectedBank === bank.id}
-                              onChange={() => setSelectedBank(bank.id)}
-                              className="sr-only"
-                            />
-                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${selectedBank === bank.id ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
-                              }`} />
-                            <div className={`${bank.color || 'bg-blue-600'} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}>
-                              {bank.bankName?.split(' ')[1]?.[0] || bank.bankName?.[0]}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">{bank.bankName}</p>
-                              <p className="text-xs text-gray-500">
-                                {bank.accountNumber} a.n. {bank.accountName}
-                              </p>
-                            </div>
-                          </label>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* EWALLET */}
-                {paymentMethod === 'EWALLET' && (
-                  <div className="bg-green-50 rounded-xl p-4">
-                    <p className="text-sm font-medium text-green-800 mb-3">Pilih E-Wallet:</p>
-                    <div className="space-y-2">
-                      {activeBanks
-                        .filter((b) => b.type === 'EWALLET')
-                        .map((wallet) => (
-                          <label
-                            key={wallet.id}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl bg-white border cursor-pointer ${selectedBank === wallet.id ? 'border-green-600' : 'border-gray-200'
-                              }`}
-                          >
-                            <input
-                              type="radio"
-                              checked={selectedBank === wallet.id}
-                              onChange={() => setSelectedBank(wallet.id)}
-                              className="sr-only"
-                            />
-                            <div className={`w-3.5 h-3.5 rounded-full border-2 ${selectedBank === wallet.id ? 'border-green-600 bg-green-600' : 'border-gray-300'
-                              }`} />
-                            <div className={`${wallet.color || 'bg-green-600'} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold`}>
-                              {wallet.bankName?.[0]}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">{wallet.bankName}</p>
-                              <p className="text-xs text-gray-500">
-                                {wallet.accountNumber} a.n. {wallet.accountName}
-                              </p>
-                            </div>
-                          </label>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* MIDTRANS */}
-                {paymentMethod === 'MIDTRANS' && (
-                  <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-700 font-medium">
-                    ⚡ Pop-up pembayaran instan Midtrans (QRIS, VA, Kartu Kredit) akan otomatis terbuka setelah Anda klik tombol "Buat Pesanan".
-                  </div>
-                )}
-
-                {/* NOTES */}
                 <div className="mt-5">
-                  <h3 className="text-gray-800 mb-3 font-bold">Catatan Pesanan (Opsional)</h3>
                   <textarea
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={(e) =>
+                      setNotes(e.target.value)
+                    }
                     rows={3}
-                    placeholder="Contoh: Tolong dibungkus rapi..."
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    placeholder="Catatan pesanan..."
+                    className="w-full border border-gray-200 rounded-xl p-3 text-sm"
                   />
                 </div>
               </div>
             </div>
 
-            {/* RIGHT SIDE (DETAIL TOTAL) */}
+            {/* RIGHT */}
+
             <div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24">
-                <h3 className="text-gray-800 font-bold mb-4">Detail Pesanan</h3>
 
-                <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                <h3 className="font-bold text-gray-800 mb-4">
+                  Detail Pesanan
+                </h3>
+
+                <div className="space-y-3 mb-4">
                   {cart.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      <div className={`${item.bgColor || 'bg-gray-100'} w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-50`}>
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=📦';
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xl">🛒</span>
-                        )}
-                      </div>
+                    <div
+                      key={item.id}
+                      className="flex justify-between"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">
+                          {item.name}
+                        </p>
 
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-800 truncate">{item.name}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {item.quantity} x {formatRupiah(item.price)}
+                        <p className="text-xs text-gray-500">
+                          {item.quantity} x{' '}
+                          {formatRupiah(
+                            item.price
+                          )}
                         </p>
                       </div>
 
-                      <span className="text-xs font-bold text-gray-700 whitespace-nowrap">
-                        {formatRupiah(item.price * item.quantity)}
-                      </span>
+                      <p className="text-sm font-bold">
+                        {formatRupiah(
+                          item.price *
+                            item.quantity
+                        )}
+                      </p>
                     </div>
                   ))}
                 </div>
 
-                <div className="space-y-2 py-3 border-y border-gray-100 mb-4 text-sm">
-                  <div className="flex justify-between text-gray-600">
+                <div className="border-t border-gray-100 pt-4 space-y-2">
+
+                  <div className="flex justify-between text-sm">
                     <span>Subtotal</span>
-                    <span>{formatRupiah(cartTotal)}</span>
+
+                    <span>
+                      {formatRupiah(cartTotal)}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Ongkir ({courier})</span>
-                    <span className={shippingCost === 0 ? 'text-green-600 font-medium' : ''}>
-                      {shippingCost === 0 ? 'GRATIS' : formatRupiah(shippingCost)}
+
+                  <div className="flex justify-between text-sm">
+                    <span>Ongkir</span>
+
+                    <span>
+                      {formatRupiah(
+                        shippingCost
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between font-bold text-lg pt-2">
+                    <span>Total</span>
+
+                    <span className="text-blue-700">
+                      {formatRupiah(total)}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex justify-between mb-5 font-medium">
-                  <span className="text-gray-800">Total</span>
-                  <span className="text-blue-700 text-lg">{formatRupiah(total)}</span>
-                </div>
-
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={loading || !address}
-                  className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+                  disabled={
+                    loading ||
+                    loadingOngkir ||
+                    !selectedShipping
+                  }
+                  className="w-full mt-5 bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <CheckCircle2 className="w-5 h-5" />
                   )}
-                  {loading ? 'Memproses...' : 'Buat Pesanan'}
-                </button>
 
-                {!address && (
-                  <p className="text-xs text-red-500 text-center mt-2">
-                    Tambahkan alamat pengiriman terlebih dahulu
-                  </p>
-                )}
+                  {loading
+                    ? 'Memproses...'
+                    : 'Buat Pesanan'}
+                </button>
               </div>
             </div>
           </div>

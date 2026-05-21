@@ -1,88 +1,102 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-import {
-  Package,
-  ShoppingBag,
-  ChevronRight,
-  Loader2,
-  Search,
-  X,
-  AlertTriangle, // ➕ Tambahan icon untuk modal pembatalan
-} from 'lucide-react';
-
+import { Package, ShoppingBag, ChevronRight, Loader2, Search, X, AlertTriangle, Star, Camera, FileText } from 'lucide-react';
 import Navbar from '@/components/sharing/navbar';
-import Footer from '@/components/sharing/footer';
-
 import { useApp } from '@/store/appcontext';
+import { formatRupiah, formatDate, getOrderStatusLabel, getOrderStatusColor, getPaymentStatusLabel, getPaymentStatusColor } from '@/lib/utils';
 
-import {
-  formatRupiah,
-  formatDate,
-  getOrderStatusLabel,
-  getOrderStatusColor,
-  getPaymentStatusLabel,
-  getPaymentStatusColor,
-} from '@/lib/utils';
-
-// ================= TABS =================
-
-const tabs: {
-  id: string;
-  label: string;
-}[] = [
-    { id: 'ALL', label: 'Semua' },
-    { id: 'PENDING', label: 'Belum Bayar' },
-    { id: 'CONFIRMED', label: 'Dikonfirmasi' },
-    { id: 'PROCESSING', label: 'Diproses' },
-    { id: 'SHIPPED', label: 'Dikirim' },
-    { id: 'DELIVERED', label: 'Selesai' },
-    { id: 'CANCELLED', label: 'Dibatalkan' },
-  ];
-
-// ➕ Pilihan opsi alasan pembatalan agar user tidak repot mengetik
-const CANCEL_REASONS = [
-  "Ingin mengubah rincian pesanan (alamat, varian, kuantitas)",
-  "Menemukan harga yang lebih murah di toko lain",
-  "Salah memilih produk",
-  "Tidak ingin membeli lagi",
-  "Lainnya (Tulis alasan Anda di bawah)",
+const TABS = [
+  { id: 'ALL', label: 'Semua' },
+  { id: 'PENDING', label: 'Belum Bayar' },
+  { id: 'CONFIRMED', label: 'Dikonfirmasi' },
+  { id: 'PROCESSING', label: 'Diproses' },
+  { id: 'SHIPPED', label: 'Dikirim' },
+  { id: 'DELIVERED', label: 'Selesai' },
+  { id: 'REVIEW', label: 'Ulasan' },
+  { id: 'CANCELLED', label: 'Dibatalkan' },
 ];
 
-export default function OrdersPage() {
-  const { orders, currentUser } = useApp();
-  const [activeTab, setActiveTab] = useState('ALL');
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+const CANCEL_REASONS = [
+  "Ingin mengubah rincian pesanan",
+  "Menemukan harga lebih murah",
+  "Salah memilih produk",
+  "Tidak ingin membeli lagi",
+  "Lainnya",
+];
 
-  // ➕ State baru untuk manajemen Modal Pembatalan
+interface ReviewItemState {
+  rating: number;
+  comment: string;
+  imageFile: File | null;
+  imagePreview: string | null;
+}
+
+export default function OrdersPage() {
+  const { orders, setOrders, currentUser } = useApp();
+  const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [activeReviewSubTab, setActiveReviewSubTab] = useState<'NOT_REVIEWED' | 'REVIEWED'>('NOT_REVIEWED');
+  
+  // State untuk Pencarian & Loading prosess
+  const [searchQuery, setSearchQuery] = useState('');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // State untuk Modals Kontrol
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [selectedReason, setSelectedReason] = useState(CANCEL_REASONS[0]);
-  const [customReason, setCustomReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState<string>(CANCEL_REASONS[0]);
+  const [customReason, setCustomReason] = useState<string>('');
 
-  // ================= FILTER DATA PESANAN =================
+  const [isDeliveredModalOpen, setIsDeliveredModalOpen] = useState(false);
 
-  const myOrders = orders.filter(
-    (o: any) => o.userId === currentUser?.id
-  );
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState<any>(null);
+  const [reviewData, setReviewData] = useState<{ [orderItemId: string]: ReviewItemState }>({});
 
-  const filtered = myOrders.filter((order: any) => {
-    const matchesTab = activeTab === 'ALL' || order.status === activeTab;
+  // Bersihkan object URLs untuk mencegah memory leak saat unmount atau reviewData berubah
+  useEffect(() => {
+    return () => {
+      Object.values(reviewData).forEach(item => {
+        if (item.imagePreview) URL.revokeObjectURL(item.imagePreview);
+      });
+    };
+  }, [reviewData]);
+
+  // FILTER LOGIC UTAMA
+  const myOrders = orders.filter((o: any) => o.userId === currentUser?.id);
+  
+  const filteredOrders = myOrders.filter((order: any) => {
+    let matchesTab = false;
+    if (activeTab === 'ALL') {
+      matchesTab = true;
+    } else if (activeTab === 'REVIEW') {
+      matchesTab = order.status === 'DELIVERED';
+    } else {
+      matchesTab = order.status === activeTab;
+    }
+
+    if (activeTab === 'REVIEW' && matchesTab) {
+  const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
+  matchesTab = activeReviewSubTab === 'NOT_REVIEWED' ? !isAllItemsReviewed : isAllItemsReviewed;
+}
+
+    // Filter berdasarkan query pencarian
     const searchLower = searchQuery.toLowerCase().trim();
-    const matchesOrderNumber = order.orderNumber?.toLowerCase().includes(searchLower);
+    if (searchLower) {
+      const matchesOrderNumber = order.orderNumber?.toLowerCase().includes(searchLower);
+      const matchesProducts = order.items?.some((item: any) => 
+        (item.productName || item.name || '').toLowerCase().includes(searchLower)
+      );
+      return matchesTab && (matchesOrderNumber || matchesProducts);
+    }
 
-    const matchesProducts = order.items?.some((item: any) => {
-      const productName = item.productName || item.name || '';
-      return productName.toLowerCase().includes(searchLower);
-    });
-
-    return matchesTab && (searchQuery === '' || matchesOrderNumber || matchesProducts);
+    return matchesTab;
   });
 
-  // ================= BUKA MODAL PEMBATALAN =================
+  // HANDLERS UNTUK MODAL PEMBATALAN PESANAN
   const handleOpenCancelModal = (orderId: string) => {
     setSelectedOrderId(orderId);
     setSelectedReason(CANCEL_REASONS[0]);
@@ -90,45 +104,183 @@ export default function OrdersPage() {
     setIsCancelModalOpen(true);
   };
 
-  // ================= PROSES SUBMIT PEMBATALAN =================
   const confirmCancelOrder = async () => {
     if (!selectedOrderId) return;
-
-    // Tentukan teks alasan akhir yang akan disimpan ke field notes database
-    const finalReason = selectedReason.startsWith("Lainnya")
-      ? `Dibatalkan oleh pelanggan: ${customReason.trim() || 'Tanpa alasan spesifik'}`
-      : `Dibatalkan oleh pelanggan: ${selectedReason}`;
-
+    const finalReason = selectedReason === 'Lainnya' ? customReason : selectedReason;
+    
     try {
       setCancellingId(selectedOrderId);
-      setIsCancelModalOpen(false); // Tutup modal segera setelah konfirmasi ditekan
+      setIsCancelModalOpen(false);
 
-      const res = await fetch(`/api/orders/${selectedOrderId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Mengirimkan status CANCELLED beserta alasan di field notes
-        body: JSON.stringify({
-          status: 'CANCELLED',
-          notes: finalReason
-        }),
+      const res = await fetch(`/api/orders/${selectedOrderId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: `Dibatalkan oleh pelanggan: ${finalReason}` })
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Gagal membatalkan pesanan');
+      if (res.ok) {
+        setOrders((prev: any[]) => 
+          prev.map(o => o.id === selectedOrderId ? { ...o, status: 'CANCELLED', notes: `Dibatalkan oleh pelanggan: ${finalReason}` } : o)
+        );
+        alert('Pesanan berhasil dibatalkan.');
+      } else {
+        alert('Gagal membatalkan pesanan dari server.');
       }
-
-      alert('Pesanan berhasil dibatalkan');
-      window.location.reload();
-
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || 'Terjadi kesalahan sistem');
+    } catch (err) {
+      alert('Terjadi kesalahan sistem saat membatalkan pesanan.');
     } finally {
       setCancellingId(null);
       setSelectedOrderId(null);
+    }
+  };
+
+  // HANDLERS UNTUK MODAL KONFIRMASI PESANAN DITERIMA
+  const handleOpenDeliveredModal = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setIsDeliveredModalOpen(true);
+  };
+
+  const confirmDeliveredOrder = async () => {
+    if (!selectedOrderId) return;
+
+    try {
+      setDeliveringId(selectedOrderId);
+      setIsDeliveredModalOpen(false);
+
+      const res = await fetch(`/api/orders/${selectedOrderId}/delivered`, {
+        method: 'POST'
+      });
+
+      if (res.ok) {
+        setOrders((prev: any[]) => 
+          prev.map(o => o.id === selectedOrderId ? { ...o, status: 'DELIVERED' } : o)
+        );
+        alert('Terima kasih! Pesanan diselesaikan, silakan beri ulasan terbaik Anda.');
+        setActiveTab('REVIEW');
+        setActiveReviewSubTab('NOT_REVIEWED');
+      } else {
+        alert('Gagal memperbarui status pesanan.');
+      }
+    } catch (err) {
+      alert('Terjadi masalah koneksi internet.');
+    } finally {
+      setDeliveringId(null);
+      setSelectedOrderId(null);
+    }
+  };
+
+  // HANDLERS UNTUK LOGIKA OPERASIONAL MANAGEMENT ULASAN (REVIEW)
+  const handleOpenReviewModal = (order: any) => {
+    setSelectedOrderForReview(order);
+    
+    // Inisialisasi state review default kosong untuk setiap item di order tersebut
+    const initialStates: { [key: string]: ReviewItemState } = {};
+    order.items?.forEach((item: any) => {
+      if (!item.review) {
+        initialStates[item.id] = {
+          rating: 5,
+          comment: '',
+          imageFile: null,
+          imagePreview: null
+        };
+      }
+    });
+    setReviewData(initialStates);
+    setIsReviewModalOpen(true);
+  };
+
+  const handleRatingChange = (itemId: string, rating: number) => {
+    setReviewData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], rating }
+    }));
+  };
+
+  const handleCommentChange = (itemId: string, comment: string) => {
+    setReviewData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], comment }
+    }));
+  };
+
+  const handleImageChange = (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setReviewData(prev => {
+      // Revoke preview lama jika ada untuk cegah memory leak
+      if (prev[itemId]?.imagePreview) URL.revokeObjectURL(prev[itemId].imagePreview!);
+      return {
+        ...prev,
+        [itemId]: { ...prev[itemId], imageFile: file, imagePreview: previewUrl }
+      };
+    });
+  };
+
+  const handleRemoveImage = (itemId: string) => {
+    setReviewData(prev => {
+      if (prev[itemId]?.imagePreview) URL.revokeObjectURL(prev[itemId].imagePreview!);
+      return {
+        ...prev,
+        [itemId]: { ...prev[itemId], imageFile: null, imagePreview: null }
+      };
+    });
+  };
+
+  const handleSubmitAllReviews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderForReview) return;
+
+    try {
+      setIsSubmittingReview(true);
+      const updatedItems = [...selectedOrderForReview.items];
+
+      for (const item of updatedItems) {
+        if (item.review) continue;
+
+        const currentItemReview = reviewData[item.id];
+        let imageUrl = '';
+
+        if (currentItemReview?.imageFile) {
+          const formData = new FormData();
+          formData.append('file', currentItemReview.imageFile);
+          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            imageUrl = uploadData.url;
+          }
+        }
+
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderItemId: item.id,
+            productId: item.productId,
+            userId: currentUser?.id,
+            rating: currentItemReview?.rating || 5,
+            comment: currentItemReview?.comment || '',
+            image: imageUrl || null
+          }),
+        });
+
+        if (res.ok) {
+         item.isReviewed = true;
+        }
+      }
+
+      setOrders((prev: any[]) => 
+        prev.map(o => o.id === selectedOrderForReview.id ? { ...o, items: updatedItems } : o)
+      );
+      
+      alert('Terima kasih! Ulasan berhasil disimpan.');
+      setIsReviewModalOpen(false);
+      setActiveReviewSubTab('REVIEWED');
+    } catch (error) {
+      alert('Gagal menyimpan ulasan');
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -138,28 +290,26 @@ export default function OrdersPage() {
 
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 py-8">
-          {/* Header */}
+          
+          {/* Breadcrumb & Title */}
           <div className="mb-6">
             <nav className="text-sm text-gray-500 mb-2">
               <Link href="/" className="hover:text-blue-600">Beranda</Link>
               <span className="mx-2">/</span>
               <span className="text-gray-800">Pesanan Saya</span>
             </nav>
-
             <h1 className="text-3xl font-black text-gray-800">Pesanan Saya</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Pantau status pesanan Anda secara realtime
-            </p>
+            <p className="text-gray-500 text-sm mt-1">Pantau status pesanan Anda secara realtime</p>
           </div>
 
-          {/* Bar Pencarian */}
+          {/* Search Input Bar */}
           <div className="relative mb-5">
             <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-gray-400">
               <Search className="w-5 h-5" />
             </div>
             <input
               type="text"
-              placeholder="Cari nomor pesanan (cth: ORD-17791...) atau nama susu..."
+              placeholder="Cari nomor pesanan atau nama susu..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-gray-100 rounded-[24px] pl-14 pr-12 py-4 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-800"
@@ -171,26 +321,37 @@ export default function OrdersPage() {
             )}
           </div>
 
-          {/* Tabs */}
+          {/* Navigation Filter Tabs */}
           <div className="bg-white rounded-[28px] border border-gray-100 overflow-hidden shadow-sm mb-5">
             <div className="flex overflow-x-auto scrollbar-hide">
-              {tabs.map((tab) => {
+              {TABS.map((tab) => {
                 const count = myOrders.filter((o: any) => {
-                  const matchesTab = o.status === tab.id;
+                  let matchesTab = false;
+                  if (tab.id === 'ALL') {
+                    matchesTab = true;
+                  } else if (tab.id === 'REVIEW') {
+                    matchesTab = o.status === 'DELIVERED';
+                  } else {
+                    matchesTab = o.status === tab.id;
+                  }
+
                   const searchLower = searchQuery.toLowerCase().trim();
+                  if (!searchLower) return matchesTab;
+                  
                   const matchesOrderNumber = o.orderNumber?.toLowerCase().includes(searchLower);
                   const matchesProducts = o.items?.some((item: any) => (item.productName || item.name || '').toLowerCase().includes(searchLower));
-                  return matchesTab && (searchQuery === '' || matchesOrderNumber || matchesProducts);
+                  return matchesTab && (matchesOrderNumber || matchesProducts);
                 }).length;
 
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex-shrink-0 px-5 py-4 text-sm font-bold border-b-2 transition-all ${activeTab === tab.id
+                    className={`flex-shrink-0 px-5 py-4 text-sm font-bold border-b-2 transition-all ${
+                      activeTab === tab.id
                         ? 'border-blue-600 text-blue-600 bg-blue-50/40'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}
+                    }`}
                   >
                     {tab.label}
                     {tab.id !== 'ALL' && count > 0 && (
@@ -204,8 +365,34 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Empty State / Not Found */}
-          {filtered.length === 0 ? (
+          {/* Sub Nav Tab Khasiat Review */}
+          {activeTab === 'REVIEW' && (
+            <div className="flex gap-2 mb-5 bg-white p-1.5 rounded-[20px] border border-gray-100 shadow-sm max-w-md">
+              <button
+                onClick={() => setActiveReviewSubTab('NOT_REVIEWED')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
+                  activeReviewSubTab === 'NOT_REVIEWED'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                Belum Dinilai
+              </button>
+              <button
+                onClick={() => setActiveReviewSubTab('REVIEWED')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
+                  activeReviewSubTab === 'REVIEWED'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                Sudah Dinilai
+              </button>
+            </div>
+          )}
+
+          {/* List Content Area */}
+          {filteredOrders.length === 0 ? (
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm py-20 px-6 text-center">
               <div className="text-7xl mb-5">📦</div>
               <h3 className="text-2xl font-bold text-gray-700 mb-2">
@@ -225,125 +412,163 @@ export default function OrdersPage() {
               )}
             </div>
           ) : (
-            /* Daftar Pesanan */
             <div className="space-y-5">
-              {filtered.map((order: any) => (
-                <div key={order.id} className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+              {filteredOrders.map((order: any) => {
+                // 💡 PERBAIKAN: Gunakan properti 'isReviewed' yang dikirim dari API Anda
+  const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
 
-                  {/* Top Header */}
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-5 bg-gray-50 border-b border-gray-100">
-                    <div className="flex items-center gap-4">
-                      <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
-                        <Package className="w-5 h-5" />
+  // Kode console.log untuk memantau data di inspect element browser
+  console.log(`Order: ${order.orderNumber} | Semua sudah dinilai?`, isAllItemsReviewed);
+                return (
+                  <div key={order.id} className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                    
+                    {/* Card Header Info */}
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-5 bg-gray-50 border-b border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <Package className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-gray-800">{order.orderNumber}</h3>
+                          <p className="text-xs text-gray-400 mt-1">{formatDate(order.createdAt)}</p>
+                        </div>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getOrderStatusColor(order.status)}`}>
+                          {getOrderStatusLabel(order.status)}
+                        </span>
+                        <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
+                          {getPaymentStatusLabel(order.paymentStatus)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Body Products List */}
+                    <div className="px-6 py-4">
+                      {order.items?.map((item: any) => (
+                        <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-4 py-4 border-b border-gray-50 last:border-0">
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-3xl flex-shrink-0 border border-gray-100 overflow-hidden">
+                              {item.image || item.productImage || item.productImageUrl ? (
+                                <img
+                                  src={item.image || item.productImage || item.productImageUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : '🥛'}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-gray-800 truncate">{item.productName || item.name}</h4>
+                              <p className="text-xs text-gray-500 mt-1">{item.quantity} x {formatRupiah(item.price)}</p>
+                            </div>
+                          </div>
+
+                          <div className="text-right flex items-center gap-2">
+                            <p className="text-sm font-black text-blue-700">{formatRupiah(item.price * item.quantity)}</p>
+                            {item.review && (
+                              <span className="text-[10px] text-gray-400 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md ml-2">Sudah Diulas</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Pembatalan Notes Info */}
+                      {order.status === 'CANCELLED' && order.notes && (
+                        <div className="mt-3 bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-100">
+                          📌 <strong>Alasan Pembatalan:</strong> {order.notes.replace("Dibatalkan oleh pelanggan: ", "")}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer Actions */}
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-5 border-t border-gray-100">
                       <div>
-                        <h3 className="font-black text-gray-800">{order.orderNumber}</h3>
-                        <p className="text-xs text-gray-400 mt-1">{formatDate(order.createdAt)}</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Total Pesanan</p>
+                        <h3 className="text-2xl font-black text-blue-700 mt-1">{formatRupiah(order.totalAmount)}</h3>
                       </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getOrderStatusColor(order.status)}`}>
-                        {getOrderStatusLabel(order.status)}
-                      </span>
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
-                        {getPaymentStatusLabel(order.paymentStatus)}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
+                          <>
+                            <button
+                              onClick={() => handleOpenCancelModal(order.id)}
+                              disabled={cancellingId === order.id}
+                              className="px-4 py-2 border border-red-300 text-red-500 rounded-2xl text-sm hover:bg-red-50 transition-all flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {cancellingId === order.id ? 'Memproses...' : 'Batalkan'}
+                            </button>
+                            <Link href={`/customer/orders/${order.id}`} className="px-4 py-2 bg-orange-500 text-white rounded-2xl text-sm hover:bg-orange-600">
+                              Bayar Sekarang
+                            </Link>
+                          </>
+                        )}
 
-                  {/* Items */}
-                  <div className="px-6 py-4">
-                    {order.items?.slice(0, 2).map((item: any) => (
-                      <div key={item.id} className="flex items-center gap-4 py-4 border-b border-gray-50 last:border-0">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-3xl flex-shrink-0 border border-gray-100 overflow-hidden">
-                          {item.image || item.productImage || item.productImageUrl ? (
-                            <img
-                              src={item.image || item.productImage || item.productImageUrl}
-                              alt={item.productName || item.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : item.productEmoji || '🥛'}
-                        </div>
+                        {order.paymentStatus === 'WAITING_VERIFICATION' && (
+                          <span className="text-sm text-orange-600 bg-orange-50 px-4 py-2 rounded-2xl font-medium">
+                            ⏳ Menunggu Verifikasi
+                          </span>
+                        )}
 
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-bold text-gray-800 truncate">{item.productName || item.name}</h4>
-                          <p className="text-xs text-gray-500 mt-1">{item.quantity} x {formatRupiah(item.price)}</p>
-                        </div>
-
-                        <div className="text-right">
-                          <p className="text-sm font-black text-blue-700">{formatRupiah(item.price * item.quantity)}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {order.items?.length > 2 && (
-                      <p className="text-xs text-gray-400 mt-3">+{order.items.length - 2} produk lainnya</p>
-                    )}
-
-                    {/* Alasan pembatalan jika ada di kolom notes */}
-                    {order.status === 'CANCELLED' && order.notes && (
-                      <div className="mt-3 bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-100">
-                        📌 <strong>Alasan Pembatalan:</strong> {order.notes.replace("Dibatalkan oleh pelanggan: ", "")}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Footer Card */}
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-5 border-t border-gray-100">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Total Pesanan</p>
-                      <h3 className="text-2xl font-black text-blue-700 mt-1">{formatRupiah(order.totalAmount)}</h3>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
-                        <>
-                          {/* Button pemicu modal baru */}
+                        {order.status === 'SHIPPED' && order.trackingNumber && (
+                          <span className="text-sm text-purple-600 bg-purple-50 px-4 py-2 rounded-2xl font-medium">
+                            📦 {order.trackingNumber}
+                          </span>
+                        )}
+                        
+                        {order.status === 'SHIPPED' && (
                           <button
-                            onClick={() => handleOpenCancelModal(order.id)}
-                            disabled={cancellingId === order.id}
-                            className="px-4 py-2 border border-red-300 text-red-500 rounded-2xl text-sm hover:bg-red-50 transition-all flex items-center gap-1 disabled:opacity-50"
+                            onClick={() => handleOpenDeliveredModal(order.id)}
+                            disabled={deliveringId === order.id}
+                            className="px-4 py-2 bg-green-600 text-white rounded-2xl text-sm hover:bg-green-700 transition-all flex items-center gap-1 disabled:opacity-50"
                           >
-                            {cancellingId === order.id ? (
-                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Memproses...</>
-                            ) : 'Batalkan'}
+                            {deliveringId === order.id ? 'Memproses...' : 'Pesanan Diterima'}
                           </button>
+                        )}
 
-                          <Link href={`/customer/orders/${order.id}`} className="px-4 py-2 bg-orange-500 text-white rounded-2xl text-sm hover:bg-orange-600">
-                            Bayar Sekarang
-                          </Link>
-                        </>
-                      )}
+                        {/* Menampilkan status pesanan selesai jika berada di Tab DELIVERED */}
+                        {order.status === 'DELIVERED' && activeTab === 'DELIVERED' && (
+                          <span className="text-xs font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-2xl">
+                            ✓ Pesanan Selesai
+                          </span>
+                        )}
 
-                      {order.paymentStatus === 'WAITING_VERIFICATION' && (
-                        <span className="text-sm text-orange-600 bg-orange-50 px-4 py-2 rounded-2xl font-medium">
-                          ⏳ Menunggu Verifikasi
-                        </span>
-                      )}
+                        {/* Logika Tombol Khusus Tab REVIEW */}
+                        {activeTab === 'REVIEW' && (
+                          activeReviewSubTab === 'NOT_REVIEWED' ? (
+                            <button
+                              onClick={() => handleOpenReviewModal(order)}
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-2xl shadow-md shadow-amber-100 transition-all flex items-center gap-1.5"
+                            >
+                              ⭐ Tulis Review
+                            </button>
+                          ) : (
+                            <Link 
+                              href={`/customer/orders/${order.id}`} 
+                              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-4 py-2 rounded-2xl shadow-md shadow-emerald-100 transition-all"
+                            >
+                              <FileText className="w-4 h-4" /> Detail Review
+                            </Link>
+                          )
+                        )}
 
-                      {order.status === 'SHIPPED' && order.trackingNumber && (
-                        <span className="text-sm text-purple-600 bg-purple-50 px-4 py-2 rounded-2xl font-medium">
-                          📦 {order.trackingNumber}
-                        </span>
-                      )}
-
-                      <Link href={`/customer/orders/${order.id}`} className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-2xl text-sm hover:bg-blue-700">
-                        Detail <ChevronRight className="w-4 h-4" />
-                      </Link>
+                        <Link href={`/customer/orders/${order.id}`} className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-2xl text-sm hover:bg-blue-700">
+                          Detail <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
                     </div>
+
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </main>
 
-      {/* ➕ MODAL DIALOG POP-UP FORM ALASAN PEMBATALAN */}
+      {/* MODAL FORM ALASAN PEMBATALAN */}
       {isCancelModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 transform transition-all scale-100">
-            {/* Header Modal */}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-gray-100">
             <div className="bg-red-50/50 p-6 pb-4 border-b border-gray-50 flex items-start gap-4">
               <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -353,18 +578,16 @@ export default function OrdersPage() {
                 <p className="text-sm text-gray-500 mt-0.5">Beritahu kami alasan pembatalan Anda sebelum mengonfirmasi.</p>
               </div>
             </div>
-
-            {/* Isi Form */}
+          
             <div className="p-6 space-y-4">
               <label className="block text-sm font-bold text-gray-700">Pilih Alasan Utama:</label>
               <div className="space-y-2">
                 {CANCEL_REASONS.map((reason, idx) => (
                   <label
                     key={idx}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedReason === reason
-                        ? 'border-blue-600 bg-blue-50/40 text-blue-900 font-medium'
-                        : 'border-gray-100 hover:bg-gray-50 text-gray-600'
-                      }`}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      selectedReason === reason ? 'border-blue-600 bg-blue-50/40 text-blue-900 font-medium' : 'border-gray-100 hover:bg-gray-50 text-gray-600'
+                    }`}
                   >
                     <input
                       type="radio"
@@ -379,13 +602,12 @@ export default function OrdersPage() {
                 ))}
               </div>
 
-              {/* Textarea muncul bersyarat jika memilih alasan 'Lainnya' */}
-              {selectedReason.startsWith("Lainnya") && (
-                <div className="space-y-1.5 animate-slideDown">
+              {selectedReason === "Lainnya" && (
+                <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-gray-500 uppercase">Tulis Alasan Kustom:</label>
                   <textarea
                     rows={3}
-                    placeholder="Masukkan alasan pembatalan Anda secara detail di sini..."
+                    placeholder="Masukkan alasan pembatalan Anda secara detail..."
                     value={customReason}
                     onChange={(e) => setCustomReason(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800"
@@ -395,20 +617,15 @@ export default function OrdersPage() {
               )}
             </div>
 
-            {/* Tombol Aksi Kaki Modal */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setIsCancelModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100 transition-all"
-              >
+              <button type="button" onClick={() => setIsCancelModalOpen(false)} className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100">
                 Kembali
               </button>
               <button
                 type="button"
                 onClick={confirmCancelOrder}
-                disabled={selectedReason.startsWith("Lainnya") && !customReason.trim()}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                disabled={selectedReason === "Lainnya" && !customReason.trim()}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-200 transition-all disabled:opacity-50"
               >
                 Konfirmasi Batal
               </button>
@@ -417,7 +634,163 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <Footer />
+      {/* MODAL KONFIRMASI PESANAN DITERIMA */}
+      {isDeliveredModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl border border-gray-100 text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl mb-4">✅</div>
+            <h3 className="text-xl font-black text-gray-800">Pesanan Selesai?</h3>
+            <p className="text-sm text-gray-500 mt-1 mb-6">Apakah produk sudah Anda terima dengan baik dan sesuai pesanan?</p>
+            <div className="flex gap-3">
+              <button 
+                type="button" 
+                onClick={() => { setIsDeliveredModalOpen(false); setSelectedOrderId(null); }} 
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-sm"
+              >
+                Belum
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmDeliveredOrder} 
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-green-200"
+              >
+                Ya, Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POP-UP DIALOG BERI REVIEW */}
+      {isReviewModalOpen && selectedOrderForReview && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl shadow-2xl overflow-hidden border border-gray-100 my-8">
+            
+            {/* Header Modal */}
+            <div className="bg-amber-50/50 p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-gray-800">Ulas Pesanan Anda</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Nomor Order: {selectedOrderForReview.orderNumber}</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsReviewModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 bg-white p-1.5 rounded-full shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitAllReviews}>
+              {/* Kontainer Scroll untuk review multi-produk */}
+              <div className="p-6 space-y-8 max-h-[60vh] overflow-y-auto scrollbar-hide">
+                {selectedOrderForReview.items?.map((item: any) => {
+  if (item.isReviewed) {
+    return (
+      <div key={item.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+        <span className="text-sm font-bold text-gray-500">🥛 {item.productName || item.name} sudah selesai Anda ulas.</span>
+      </div>
+    );
+  }
+
+                  const itemState = reviewData[item.id] || { rating: 5, comment: '', imagePreview: null, imageFile: null };
+
+                  return (
+                    <div key={item.id} className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm space-y-4">
+                      
+                      {/* Info Mini Produk */}
+                      <div className="flex items-center gap-3 border-b border-gray-50 pb-3">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl overflow-hidden flex-shrink-0">
+                          {item.image || item.productImage || item.productImageUrl ? (
+                            <img src={item.image || item.productImage || item.productImageUrl} alt="" className="w-full h-full object-cover" />
+                          ) : '🥛'}
+                        </div>
+                        <h4 className="text-sm font-black text-gray-800 truncate">{item.productName || item.name}</h4>
+                      </div>
+
+                      {/* Bar Rating Bintang */}
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-bold text-gray-500">Kepuasan Produk:</span>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => handleRatingChange(item.id, star)}
+                              className="transition-transform hover:scale-110 focus:outline-none"
+                            >
+                              <Star
+                                className={`w-6 h-6 ${
+                                  star <= itemState.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Textarea Catatan Ulasan */}
+                      <div className="space-y-1">
+                        <textarea
+                          rows={2}
+                          value={itemState.comment}
+                          onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                          placeholder="Beri komentar rasa susu atau kualitas kemasan kiriman di sini..."
+                          className="w-full border border-gray-200 rounded-xl p-3 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800 focus:outline-none"
+                          required
+                        />
+                      </div>
+
+                      {/* Form Upload Foto */}
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-all text-gray-500 hover:text-gray-700 text-xs font-bold">
+                          <Camera className="w-4 h-4" />
+                          <span>Lampirkan Foto</span>
+                          <input type="file" accept="image/*" onChange={(e) => handleImageChange(item.id, e)} className="hidden" />
+                        </label>
+
+                        {itemState.imagePreview && (
+                          <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
+                            <img src={itemState.imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(item.id)}
+                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-all"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer Modal Action */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsReviewModalOpen(false)} 
+                  className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReview}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-100 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmittingReview && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Kirim Semua Ulasan
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

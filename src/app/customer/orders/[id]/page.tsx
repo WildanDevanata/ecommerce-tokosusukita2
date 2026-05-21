@@ -486,17 +486,22 @@ export default function OrderDetailPage() {
                 {(order.items || []).map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 py-4">
                     <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
-                      {item.image ? (
-                        <Image
-                          src={item.image}
-                          alt={item.productName}
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <span>{item.productEmoji || '🥛'}</span>
-                      )}
+                     {/* Ganti bagian Image Anda dengan ini untuk pengujian */}
+<div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100">
+  {item.image && item.image.length > 5 ? (
+    <Image
+      src={item.image}
+      alt={item.productName}
+      fill
+      className="object-cover"
+    />
+  ) : (
+    <div className="flex items-center justify-center h-full w-full">
+      {/* Jika ini muncul, berarti URL gambar dianggap invalid/kosong oleh JavaScript */}
+      <span className="text-2xl">{item.productEmoji || '🥛'}</span>
+    </div>
+  )}
+</div>
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>

@@ -12,6 +12,7 @@
     "@auth/prisma-adapter": "^2.11.2",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^5.22.0",
+    "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
     "lucide-react": "^1.11.0",

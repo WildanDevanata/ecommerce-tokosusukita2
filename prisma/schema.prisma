@@ -71,6 +71,7 @@ model User {
   payments      Payment[]
   notifications Notification[]
   cartItems     CartItem[]
+  reviews       Review[]       // ➕ Tambahan: Relasi timbal balik ke model Review
 }
 
 model Address {
@@ -88,14 +89,14 @@ model Address {
 }
 
 model Category {
-  id           String    @id @default(cuid())
-  name         String
-  slug         String    @unique
-  description  String?
-  icon         String?
-  color        String?
-  bgColor      String?
-  products     Product[]
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  icon        String?
+  color       String?
+  bgColor     String?
+  products    Product[]
 }
 
 model Product {
@@ -124,23 +125,24 @@ model Product {
   
   orderItems    OrderItem[]
   cartItems     CartItem[]
+  reviews       Review[]    // ➕ Tambahan: Relasi timbal balik ke model Review
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  orderNumber     String        @unique
-  userId          String
-  user            User          @relation(fields: [userId], references: [id])
-  totalAmount     Float
-  shippingCost    Float         @default(0)
-  status          OrderStatus   @default(PENDING)
-  paymentStatus   PaymentStatus @default(PENDING)
-  paymentMethod   PaymentMethod?
-  snapToken       String?
-  trackingNumber  String?
-  courier         String?
-  notes           String?
-  paymentProofUrl String?
+  id                String        @id @default(cuid())
+  orderNumber       String        @unique
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  totalAmount       Float
+  shippingCost      Float         @default(0)
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentMethod     PaymentMethod?
+  snapToken         String?
+  trackingNumber    String?
+  courier           String?
+  notes             String?
+  paymentProofUrl   String?
   
   // Snapshot alamat pengiriman agar tidak berubah jika user mengubah alamat profilnya
   shippingRecipient String
@@ -150,14 +152,33 @@ model Order {
   shippingProvince  String
   shippingPostalCode String
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  items           OrderItem[]
-  payments        Payment[]
+  items             OrderItem[]
+  payments          Payment[]
 }
 
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int      // 1 sampai 5
+  comment     String?  @db.Text
+  image       String?  // URL foto ulasan (opsional)
+  
+  // Relasi ke User & Product
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Menghubungkan ke OrderItem spesifik agar tidak bisa review berkali-kali
+  orderItemId String   @unique
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  review    Review?  // Field ini harus ada agar include: { review: true } bekerj
+}
 
 model OrderItem {
   id          String  @id @default(cuid())
@@ -167,6 +188,7 @@ model OrderItem {
   product     Product @relation(fields: [productId], references: [id])
   quantity    Int
   price       Float   // Harga saat dibeli
+  review      Review? // Relasi 1-to-1 ke Review
 }
 
 model Payment {

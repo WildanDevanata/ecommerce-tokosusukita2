@@ -51,6 +51,8 @@ export interface Order {
     price: number;
     productEmoji?: string;
     productBgColor?: string;
+    image?: string;
+    review?: any;
   }[];
 }
 
@@ -122,46 +124,39 @@ export interface AppContextType {
   users: User[];
   bankAccounts: BankAccount[];
   loading: boolean;
+  setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
 
-  // Fetching & Refreshers
   fetchBankAccounts: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
 
-  // State Setters (Dipakai jika butuh manipulasi manual dari luar)
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 
-  // Profile & Address Actions
   updateProfile: (data: Partial<User>) => Promise<void>;
   addAddress: (address: Address) => Promise<void>;
   updateAddress: (id: string, address: Partial<Address>) => Promise<void>;
   deleteAddress: (id: string) => Promise<void>;
 
-  // Category Actions
   addCategory: (category: Category) => void;
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
 
-  // Cart Actions
   addToCart: (item: Product) => void;
   removeFromCart: (id: string) => void;
   updateCartQty: (id: string, qty: number) => void;
 
-  // Auth Actions
   login: (user: User) => void;
   logout: () => void;
 
-  // Order Actions
   uploadPaymentProof: (orderId: string, proofUrl: string, paymentMethod: string) => Promise<void>;
   cancelOrder: (orderId: string) => void;
   updateOrderPaymentStatus: (orderId: string, status: Order['paymentStatus']) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
 }
 
-// Tambahkan eksport pada AppContext agar bisa diakses jika dibutuhkan secara langsung
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // ================= PROVIDER =================
@@ -177,6 +172,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // 💡 Tambahan state flag untuk memastikan localStorage selesai dibaca dulu
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // ================= FETCH FUNCTIONS =================
   const refreshProducts = async () => {
@@ -253,22 +251,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const savedCart = localStorage.getItem('cart');
 
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-      setIsLoggedIn(true);
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+        setIsLoggedIn(true);
+      } catch (e) {
+        console.error(e);
+      }
     }
     if (savedCart) {
-      setCart(JSON.parse(savedCart));
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error(e);
+      }
     }
+    
+    // Selesai inisialisasi pembacaan data awal
+    setIsInitialized(true);
   }, []);
 
   // ================= SAVE CART TO LOCALSTORAGE =================
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    // 💡 PERBAIKAN: Hanya simpan jika proses baca awal di client sudah beres dilakukan!
+    if (isInitialized) {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    }
+  }, [cart, isInitialized]);
 
   // ================= ACTIONS =================
 
-  // --- Category Actions ---
   const addCategory = (c: Category) => {
     setCategories((prev) => [c, ...prev]);
   };
@@ -283,7 +294,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // --- Profile & Address Actions ---
   const updateProfile = async (data: Partial<User>) => {
     if (!currentUser) return;
     try {
@@ -376,7 +386,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // --- Cart Actions ---
   const addToCart = (item: Product) => {
     setCart((prev) => {
       const exist = prev.find((i) => i.id === item.id);
@@ -403,7 +412,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  // --- Auth Actions ---
   const login = (user: User) => {
     setCurrentUser(user);
     setIsLoggedIn(true);
@@ -420,7 +428,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCart([]);
   };
 
-  // --- Order Actions ---
   const uploadPaymentProof = async (orderId: string, proofUrl: string, paymentMethod: string) => {
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -491,6 +498,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         currentUser,
         isLoggedIn,
         orders,
+        setOrders,
         users,
         bankAccounts,
         loading,

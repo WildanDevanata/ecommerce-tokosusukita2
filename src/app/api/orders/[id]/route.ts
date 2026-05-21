@@ -18,20 +18,20 @@ const formatOrderResponse = (order: any) => ({
   courier: order.courier,
   notes: order.notes,
   paymentProofUrl: order.paymentProofUrl,
-  snapToken: order.snapToken || null, // 1. TAMBAHKAN SNAPTOKEN DI SINI
+  snapToken: order.snapToken || null,
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
 
-  items: order.items.map((item: any) => ({
+  items: order.items?.map((item: any) => ({
     id: item.id,
     productId: item.productId,
     productName: item.product?.name || "Produk",
     quantity: item.quantity,
     price: item.price,
+    isReviewed: !!item.review, // Menghasilkan boolean true/false dengan aman
     image: item.product?.image || null,
     productBgColor: (item.product as any)?.bgColor || "bg-gray-100",
-    productEmoji: "🥛",
-  })),
+  })) || [],
 
   shippingAddress: {
     recipientName: order.shippingRecipient,
@@ -62,9 +62,9 @@ export async function GET(
         items: {
           include: {
             product: true,
+            review: true, // 💡 KONSISTEN: Memastikan data review ikut terambil
           },
         },
-        payments: true,
       },
     });
 
@@ -75,7 +75,6 @@ export async function GET(
       );
     }
 
-    // Gunakan helper format
     return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
     console.error(error);
@@ -127,14 +126,17 @@ export async function PATCH(
     if (body.paymentProofUrl !== undefined) updateData.paymentProofUrl = body.paymentProofUrl;
     if (body.snapToken !== undefined) updateData.snapToken = body.snapToken;
 
-    // 3. Eksekusi update ke database & sertakan relasi lengkap
+    // 3. 💡 PERBAIKAN SINTAKS: Struktur include yang benar & mendalam (Nested-include)
     const updatedOrder = await prisma.order.update({
       where: { id },
       data: updateData,
       include: {
         user: true,
         items: {
-          include: { product: true },
+          include: {
+            product: true,
+            review: true,
+          },
         },
       },
     });
@@ -143,10 +145,9 @@ export async function PATCH(
     revalidatePath("/customer/orders");
     revalidatePath(`/customer/orders/${id}`);
 
-    // 2. PERBAIKAN: Kembalikan data yang sudah di-format, jangan raw database data!
     return NextResponse.json(formatOrderResponse(updatedOrder));
   } catch (error) {
-    console.error(error);
+    console.error("Error pada PATCH Order:", error);
     return NextResponse.json(
       { error: "Gagal update order" },
       { status: 500 }

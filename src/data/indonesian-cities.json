@@ -1,0 +1,20 @@
+[
+  { "city_id": "349", "city_name": "Pekalongan", "type": "Kota" },
+  { "city_id": "348", "city_name": "Pekalongan", "type": "Kabupaten" },
+  { "city_id": "115", "city_name": "Depok", "type": "Kota" },
+  { "city_id": "55", "city_name": "Bekasi", "type": "Kota" },
+  { "city_id": "54", "city_name": "Bekasi", "type": "Kabupaten" },
+  { "city_id": "457", "city_name": "Tangerang", "type": "Kota" },
+  { "city_id": "456", "city_name": "Tangerang", "type": "Kabupaten" },
+  { "city_id": "455", "city_name": "Tangerang Selatan", "type": "Kota" },
+  { "city_id": "151", "city_name": "Jakarta Barat", "type": "Kota" },
+  { "city_id": "152", "city_name": "Jakarta Pusat", "type": "Kota" },
+  { "city_id": "153", "city_name": "Jakarta Selatan", "type": "Kota" },
+  { "city_id": "154", "city_name": "Jakarta Timur", "type": "Kota" },
+  { "city_id": "155", "city_name": "Jakarta Utara", "type": "Kota" },
+  { "city_id": "78", "city_name": "Bogor", "type": "Kota" },
+  { "city_id": "23", "city_name": "Bandung", "type": "Kota" },
+  { "city_id": "399", "city_name": "Semarang", "type": "Kota" },
+  { "city_id": "444", "city_name": "Surabaya", "type": "Kota" },
+  { "city_id": "501", "city_name": "Yogyakarta", "type": "Kota" }
+]

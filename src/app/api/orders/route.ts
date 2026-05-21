@@ -29,8 +29,9 @@ const enrichOrderData = (order: any) => ({
     productName: item.product?.name || "Produk",
     quantity: item.quantity,
     price: item.price,
-    productEmoji: "📦",
+    isReviewed: !!item.review,
     productBgColor: "bg-gray-100",
+    image: item.product?.image || null,
   })),
   shippingAddress: {
     recipientName: order.shippingRecipient,
@@ -51,6 +52,7 @@ export async function GET() {
         items: {
           include: {
             product: true,
+            review: true,
           },
         },
       },

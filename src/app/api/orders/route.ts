@@ -5,6 +5,7 @@ import midtransClient from "midtrans-client"; // 1. IMPORT MIDTRANS SDK
 
 // ================= HELPERS: ENRICH ORDER DATA =================
 // Kita buat fungsi pembantu agar format response GET dan POST selalu sama persis
+// ================= HELPERS: ENRICH ORDER DATA =================
 const enrichOrderData = (order: any) => ({
   id: order.id,
   userId: order.userId,
@@ -22,7 +23,8 @@ const enrichOrderData = (order: any) => ({
   trackingNumber: order.trackingNumber,
   courier: order.courier,
   notes: order.notes,
-  snapToken: order.snapToken || null, // Tambahkan properti snapToken ke format frontend
+  snapToken: order.snapToken || null, 
+  
   items: order.items.map((item: any) => ({
     id: item.id,
     productId: item.productId,
@@ -32,7 +34,11 @@ const enrichOrderData = (order: any) => ({
     isReviewed: !!item.review,
     productBgColor: "bg-gray-100",
     image: item.product?.image || null,
+    
+    // 💡 TAMBAHKAN BARIS INI: Agar data ulasan ikut lolos ke komponen list frontend!
+    review: item.review || null, 
   })),
+  
   shippingAddress: {
     recipientName: order.shippingRecipient,
     phone: order.shippingPhone,

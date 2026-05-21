@@ -56,6 +56,12 @@ export default function OrdersPage() {
   const [selectedOrderForReview, setSelectedOrderForReview] = useState<any>(null);
   const [reviewData, setReviewData] = useState<{ [orderItemId: string]: ReviewItemState }>({});
 
+  // 💡 STATE BARU UNTUK SEAMLESS FETCHING DETAIL RIWAYAT ULASAN
+  const [isViewReviewModalOpen, setIsViewReviewModalOpen] = useState(false);
+  const [selectedOrderForViewReview, setSelectedOrderForViewReview] = useState<any>(null);
+  const [viewReviewItems, setViewReviewItems] = useState<any[]>([]);
+  const [isLoadingViewReview, setIsLoadingViewReview] = useState(false);
+
   // Bersihkan object URLs untuk mencegah memory leak saat unmount atau reviewData berubah
   useEffect(() => {
     return () => {
@@ -64,6 +70,35 @@ export default function OrdersPage() {
       });
     };
   }, [reviewData]);
+
+  // 💡 EFFECT UNTUK OTOMATIS AMBIL DATA REVIEW KETIKA MODAL DIALURKAN
+  useEffect(() => {
+    const fetchOrderReviews = async (orderId: string) => {
+      setIsLoadingViewReview(true);
+      try {
+        const response = await fetch(`/api/reviews?orderId=${orderId}`);
+        const json = await response.json();
+
+        if (json.success) {
+          setViewReviewItems(json.data); 
+        } else {
+          console.error(json.error || "Gagal memuat ulasan");
+          setViewReviewItems([]);
+        }
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+        setViewReviewItems([]);
+      } finally {
+        setIsLoadingViewReview(false);
+      }
+    };
+
+    if (isViewReviewModalOpen && selectedOrderForViewReview?.id) {
+      fetchOrderReviews(selectedOrderForViewReview.id); 
+    } else {
+      setViewReviewItems([]);
+    }
+  }, [isViewReviewModalOpen, selectedOrderForViewReview]);
 
   // FILTER LOGIC UTAMA
   const myOrders = orders.filter((o: any) => o.userId === currentUser?.id);
@@ -79,9 +114,9 @@ export default function OrdersPage() {
     }
 
     if (activeTab === 'REVIEW' && matchesTab) {
-  const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
-  matchesTab = activeReviewSubTab === 'NOT_REVIEWED' ? !isAllItemsReviewed : isAllItemsReviewed;
-}
+      const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
+      matchesTab = activeReviewSubTab === 'NOT_REVIEWED' ? !isAllItemsReviewed : isAllItemsReviewed;
+    }
 
     // Filter berdasarkan query pencarian
     const searchLower = searchQuery.toLowerCase().trim();
@@ -209,7 +244,6 @@ export default function OrdersPage() {
 
     const previewUrl = URL.createObjectURL(file);
     setReviewData(prev => {
-      // Revoke preview lama jika ada untuk cegah memory leak
       if (prev[itemId]?.imagePreview) URL.revokeObjectURL(prev[itemId].imagePreview!);
       return {
         ...prev,
@@ -414,11 +448,6 @@ export default function OrdersPage() {
           ) : (
             <div className="space-y-5">
               {filteredOrders.map((order: any) => {
-                // 💡 PERBAIKAN: Gunakan properti 'isReviewed' yang dikirim dari API Anda
-  const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
-
-  // Kode console.log untuk memantau data di inspect element browser
-  console.log(`Order: ${order.orderNumber} | Semua sudah dinilai?`, isAllItemsReviewed);
                 return (
                   <div key={order.id} className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
                     
@@ -525,29 +554,31 @@ export default function OrdersPage() {
                           </button>
                         )}
 
-                        {/* Menampilkan status pesanan selesai jika berada di Tab DELIVERED */}
                         {order.status === 'DELIVERED' && activeTab === 'DELIVERED' && (
                           <span className="text-xs font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-2xl">
                             ✓ Pesanan Selesai
                           </span>
                         )}
 
-                        {/* Logika Tombol Khusus Tab REVIEW */}
+                        {/* 💡 MODIFIKASI TERKONTROL: Ubah Link Detail Review Menjadi Pemicu Modal Riwayat */}
                         {activeTab === 'REVIEW' && (
                           activeReviewSubTab === 'NOT_REVIEWED' ? (
                             <button
                               onClick={() => handleOpenReviewModal(order)}
                               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-2xl shadow-md shadow-amber-100 transition-all flex items-center gap-1.5"
                             >
-                              ⭐ Tulis Review
+                              Substansi Review ⭐ Tulis Review
                             </button>
                           ) : (
-                            <Link 
-                              href={`/customer/orders/${order.id}`} 
-                              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-4 py-2 rounded-2xl shadow-md shadow-emerald-100 transition-all"
+                            <button 
+                              onClick={() => {
+                                setSelectedOrderForViewReview(order);
+                                setIsViewReviewModalOpen(true);
+                              }}
+                              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2 rounded-2xl shadow-md shadow-blue-100 transition-all"
                             >
                               <FileText className="w-4 h-4" /> Detail Review
-                            </Link>
+                            </button>
                           )
                         )}
 
@@ -685,13 +716,13 @@ export default function OrdersPage() {
               {/* Kontainer Scroll untuk review multi-produk */}
               <div className="p-6 space-y-8 max-h-[60vh] overflow-y-auto scrollbar-hide">
                 {selectedOrderForReview.items?.map((item: any) => {
-  if (item.isReviewed) {
-    return (
-      <div key={item.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-        <span className="text-sm font-bold text-gray-500">🥛 {item.productName || item.name} sudah selesai Anda ulas.</span>
-      </div>
-    );
-  }
+                  if (item.isReviewed) {
+                    return (
+                      <div key={item.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <span className="text-sm font-bold text-gray-500">🥛 {item.productName || item.name} sudah selesai Anda ulas.</span>
+                      </div>
+                    );
+                  }
 
                   const itemState = reviewData[item.id] || { rating: 5, comment: '', imagePreview: null, imageFile: null };
 
@@ -705,88 +736,157 @@ export default function OrdersPage() {
                             <img src={item.image || item.productImage || item.productImageUrl} alt="" className="w-full h-full object-cover" />
                           ) : '🥛'}
                         </div>
-                        <h4 className="text-sm font-black text-gray-800 truncate">{item.productName || item.name}</h4>
+                        <span className="text-sm font-bold text-gray-800">{item.productName || item.name}</span>
                       </div>
 
-                      {/* Bar Rating Bintang */}
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs font-bold text-gray-500">Kepuasan Produk:</span>
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() => handleRatingChange(item.id, star)}
-                              className="transition-transform hover:scale-110 focus:outline-none"
-                            >
-                              <Star
-                                className={`w-6 h-6 ${
-                                  star <= itemState.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
-                                }`}
-                              />
-                            </button>
-                          ))}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Berikan Rating:</label>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => handleRatingChange(item.id, star)}
+                                className="text-gray-200 hover:scale-110 transition-all"
+                              >
+                                <Star className={`w-6 h-6 ${star <= itemState.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Komentar Ulasan:</label>
+                          <textarea
+                            rows={3}
+                            value={itemState.comment}
+                            onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                            placeholder="Tulis ulasan produk Anda di sini..."
+                            className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-800"
+                            required
+                          />
                         </div>
                       </div>
-
-                      {/* Textarea Catatan Ulasan */}
-                      <div className="space-y-1">
-                        <textarea
-                          rows={2}
-                          value={itemState.comment}
-                          onChange={(e) => handleCommentChange(item.id, e.target.value)}
-                          placeholder="Beri komentar rasa susu atau kualitas kemasan kiriman di sini..."
-                          className="w-full border border-gray-200 rounded-xl p-3 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800 focus:outline-none"
-                          required
-                        />
-                      </div>
-
-                      {/* Form Upload Foto */}
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-all text-gray-500 hover:text-gray-700 text-xs font-bold">
-                          <Camera className="w-4 h-4" />
-                          <span>Lampirkan Foto</span>
-                          <input type="file" accept="image/*" onChange={(e) => handleImageChange(item.id, e)} className="hidden" />
-                        </label>
-
-                        {itemState.imagePreview && (
-                          <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
-                            <img src={itemState.imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(item.id)}
-                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-all"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
                     </div>
                   );
                 })}
               </div>
 
-              {/* Footer Modal Action */}
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsReviewModalOpen(false)} 
-                  className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100"
-                >
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsReviewModalOpen(false)} className="px-5 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">
                   Batal
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingReview}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-100 transition-all disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmittingReview && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Kirim Semua Ulasan
+                <button type="submit" disabled={isSubmittingReview} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-1">
+                  {isSubmittingReview ? 'Menyimpan...' : 'Kirim Ulasan'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 💡 MODAL BARU: DETAIL RIWAYAT REVIEW (DENGAN TEMA BLUE UTAS SEPERTI HALAMAN UTAMA KAMU) */}
+      {isViewReviewModalOpen && selectedOrderForViewReview && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[85vh]">
+            
+            {/* Header Modal - Berwarna Biru Sesuai Tema Utama */}
+            <div className="bg-blue-50/50 p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-gray-800">Riwayat Ulasan Anda</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Nomor Order: {selectedOrderForViewReview.orderNumber}</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsViewReviewModalOpen(false);
+                  setViewReviewItems([]);
+                }}
+                className="text-gray-400 hover:text-gray-600 bg-white p-1.5 rounded-full shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Area Content List Review */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 scrollbar-hide">
+              {isLoadingViewReview ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-400">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  <p className="text-sm font-medium mt-2">Memuat ulasan dari server...</p>
+                </div>
+              ) : !viewReviewItems || viewReviewItems.length === 0 ? (
+                <div className="py-12 text-center text-sm text-gray-400">
+                  Tidak ada ulasan ditemukan untuk pesanan ini.
+                </div>
+              ) : (
+                viewReviewItems.map((item: any) => {
+                  const activeReview = item.review ? item.review : item;
+                  const productName = item.productName || item.name || "Produk";
+                  const productImage = item.image || item.productImage || null;
+
+                  return (
+                    <div key={item.id} className="p-5 bg-white border border-gray-100 rounded-3xl shadow-sm space-y-4">
+                      {/* Info Mini Produk */}
+                      <div className="flex items-center gap-3 border-b border-gray-50 pb-3">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl overflow-hidden flex-shrink-0">
+                          {productImage ? (
+                            <img src={productImage} alt="" className="w-full h-full object-cover" />
+                          ) : '🥛'}
+                        </div>
+                        <span className="text-sm font-bold text-gray-800">{productName}</span>
+                      </div>
+
+                      {/* Detail Hasil Ulasan */}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Rating:</label>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => {
+                              const currentRating = Number(activeReview?.rating) || 0;
+                              return (
+                                <Star
+                                  key={star}
+                                  className={`w-5 h-5 ${
+                                    star <= currentRating
+                                      ? 'text-amber-400 fill-amber-400'
+                                      : 'text-gray-200'
+                                  }`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Komentar:</label>
+                          <div className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700">
+                            {activeReview?.comment && activeReview.comment.trim() !== "" ? (
+                              <span className="italic text-gray-800">"{activeReview.comment}"</span>
+                            ) : (
+                              <span className="text-gray-400 italic">Tidak ada komentar tertulis.</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <button 
+                onClick={() => {
+                  setIsViewReviewModalOpen(false);
+                  setViewReviewItems([]);
+                }} 
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-100"
+              >
+                Tutup Riwayat
+              </button>
+            </div>
 
           </div>
         </div>

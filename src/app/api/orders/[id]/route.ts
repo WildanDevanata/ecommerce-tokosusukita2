@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 export const dynamic = "force-dynamic";
 
 // ================= HELPERS: SAMAKAN FORMAT DENGAN FRONTEND =================
+// ================= HELPERS: SAMAKAN FORMAT DENGAN FRONTEND =================
 const formatOrderResponse = (order: any) => ({
   id: order.id,
   userId: order.userId,
@@ -28,9 +29,12 @@ const formatOrderResponse = (order: any) => ({
     productName: item.product?.name || "Produk",
     quantity: item.quantity,
     price: item.price,
-    isReviewed: !!item.review, // Menghasilkan boolean true/false dengan aman
+    isReviewed: !!item.review, 
     image: item.product?.image || null,
     productBgColor: (item.product as any)?.bgColor || "bg-gray-100",
+    
+    // 💡 TAMBAHKAN BARIS INI: Kirim objek review utuh ke frontend
+    review: item.review || null, 
   })) || [],
 
   shippingAddress: {

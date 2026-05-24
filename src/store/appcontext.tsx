@@ -20,6 +20,16 @@ export interface BankAccount {
   isActive: boolean;
 }
 
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: 'ORDER' | 'PAYMENT' | 'INFO';
+  isRead: boolean;
+  link?: string;
+  createdAt: string | Date;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -35,15 +45,12 @@ export interface Order {
   paymentProofUrl?: string;
   trackingNumber?: string;
   courier?: string;
-
-  // --- PRISMA FLAT FIELDS ---
   shippingRecipient: string;
   shippingPhone: string;
   shippingAddress: string;
   shippingCity: string;
   shippingProvince: string;
   shippingPostalCode: string;
-
   items: {
     id: string;
     productName: string;
@@ -78,7 +85,12 @@ export interface Product {
   rating: number;
   stock: number;
   isActive?: boolean;
-
+  originalPrice?: number | null;
+  emoji?: string;
+  weight?: number;
+  categoryName?: string;
+  isNew?: boolean;
+  isBestSeller?: boolean;
   category?: {
     id: string;
     name: string;
@@ -118,6 +130,7 @@ export interface AppContextType {
   products: Product[];
   categories: Category[];
   cart: CartItem[];
+  wishlist: string[];
   currentUser: User | null;
   isLoggedIn: boolean;
   orders: Order[];
@@ -147,6 +160,7 @@ export interface AppContextType {
   addToCart: (item: Product) => void;
   removeFromCart: (id: string) => void;
   updateCartQty: (id: string, qty: number) => void;
+  toggleWishlist: (id: string) => void;
 
   login: (user: User) => void;
   logout: () => void;
@@ -155,6 +169,12 @@ export interface AppContextType {
   cancelOrder: (orderId: string) => void;
   updateOrderPaymentStatus: (orderId: string, status: Order['paymentStatus']) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
+
+  // Fix: Pastikan properti ini terisi di provider value
+  notifications: NotificationItem[];
+  unreadCount: number;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -166,15 +186,27 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // 💡 Tambahan state flag untuk memastikan localStorage selesai dibaca dulu
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // ➕ TAMBAHAN BARU: State Notifikasi yang tertinggal
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'notif-1',
+      title: 'Pesanan Baru Masuk 🍼',
+      message: 'User Wildan telah memesan Susu Formula SGM 400g.',
+      type: 'ORDER',
+      isRead: false,
+      link: '/admin/orders',
+      createdAt: new Date().toISOString(),
+    },
+  ]);
 
   // ================= FETCH FUNCTIONS =================
   const refreshProducts = async () => {
@@ -191,7 +223,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchBankAccounts = async () => {
     try {
-      setLoading(true);
       const res = await fetch('/api/bank-accounts');
       if (!res.ok) throw new Error('Gagal mengambil bank account');
       const data = await res.json();
@@ -199,8 +230,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error(error);
       setBankAccounts([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -241,44 +270,69 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ================= INITIAL LOAD =================
   useEffect(() => {
-    refreshCategories();
-    refreshOrders();
-    refreshUsers();
-    fetchBankAccounts();
-    refreshProducts();
+    const initData = async () => {
+      setLoading(true);
+      // Menjalankan fetch secara paralel agar performa loading cepat
+      await Promise.all([
+        refreshCategories(),
+        refreshOrders(),
+        refreshUsers(),
+        fetchBankAccounts(),
+        refreshProducts(),
+      ]);
 
-    const savedUser = localStorage.getItem('user');
-    const savedCart = localStorage.getItem('cart');
+      const savedUser = localStorage.getItem('user');
+      const savedCart = localStorage.getItem('cart');
+      const savedWishlist = localStorage.getItem('wishlist');
 
-    if (savedUser) {
-      try {
-        setCurrentUser(JSON.parse(savedUser));
-        setIsLoggedIn(true);
-      } catch (e) {
-        console.error(e);
+      if (savedUser) {
+        try {
+          setCurrentUser(JSON.parse(savedUser));
+          setIsLoggedIn(true);
+        } catch (e) {
+          console.error(e);
+        }
       }
-    }
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error(e);
+      if (savedCart) {
+        try {
+          setCart(JSON.parse(savedCart));
+        } catch (e) {
+          console.error(e);
+        }
       }
-    }
-    
-    // Selesai inisialisasi pembacaan data awal
-    setIsInitialized(true);
+      if (savedWishlist) {
+        try {
+          setWishlist(JSON.parse(savedWishlist));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setIsInitialized(true);
+      setLoading(false);
+    };
+
+    initData();
   }, []);
 
-  // ================= SAVE CART TO LOCALSTORAGE =================
+  // ================= SAVE TO LOCALSTORAGE =================
   useEffect(() => {
-    // 💡 PERBAIKAN: Hanya simpan jika proses baca awal di client sudah beres dilakukan!
     if (isInitialized) {
       localStorage.setItem('cart', JSON.stringify(cart));
     }
   }, [cart, isInitialized]);
 
+  useEffect(() => {
+    if (isInitialized) {
+      localStorage.setItem('wishlist', JSON.stringify(wishlist));
+    }
+  }, [wishlist, isInitialized]);
+
   // ================= ACTIONS =================
+  const toggleWishlist = (id: string) => {
+    setWishlist((prev) =>
+      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
+    );
+  };
 
   const addCategory = (c: Category) => {
     setCategories((prev) => [c, ...prev]);
@@ -361,7 +415,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem('user', JSON.stringify(updatedUser));
     } catch (error) {
       console.error("Error updateAddress:", error);
-      alert("Gagal memperbarui alamat. Silakan periksa koneksi Anda.");
     }
   };
 
@@ -456,7 +509,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       );
     } catch (error) {
       console.error(error);
-      alert("Gagal menyimpan bukti pembayaran ke server.");
     }
   };
 
@@ -480,6 +532,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
+  // ➕ TAMBAHAN BARU: Handler Fungsi Notifikasi
+  const markNotificationRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter((n) => !n.isRead).length;
+  }, [notifications]);
+
   // ================= DERIVED STATE =================
   const categoriesWithCount = useMemo(() => {
     return categories.map((cat) => ({
@@ -495,6 +562,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         products,
         categories: categoriesWithCount,
         cart,
+        wishlist,
         currentUser,
         isLoggedIn,
         orders,
@@ -519,12 +587,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         addToCart,
         removeFromCart,
         updateCartQty,
+        toggleWishlist,
         login,
         logout,
         uploadPaymentProof,
         cancelOrder,
         updateOrderPaymentStatus,
         updateOrderStatus,
+        // Inject Properti Notifikasi ke Provider
+        notifications,
+        unreadCount,
+        markNotificationRead,
+        markAllNotificationsRead,
       }}
     >
       {children}
@@ -533,7 +607,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 // ================= HOOK =================
-
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {

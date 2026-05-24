@@ -9,23 +9,25 @@ import {
   Star,
   CheckCircle2,
 } from 'lucide-react';
-import { useApp } from '@/store/appcontext';
+import { useApp } from '@/store/appcontext'; // Pastikan casing path sesuai dengan nama file kamu (misal: AppContext)
 
 export default function ProductCard({
   product,
 }: {
   product: any;
 }) {
-  // 💡 Ambil currentUser dari useApp sesuai struktur AppContext kamu
-  const { addToCart, currentUser } = useApp();
+  // 💡 Ambil wishlist global dan fungsi toggler-nya dari konteks
+  const { addToCart, currentUser, wishlist, toggleWishlist } = useApp();
 
-  const [isWishlist, setIsWishlist] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
 
   // 🛡️ Validasi role: Hanya true jika role adalah 'CUSTOMER'
   const isCustomer = currentUser?.role === 'CUSTOMER';
 
-  // ================= HANDLER =================
+  // 💝 Cek apakah ID produk ini ada di dalam array wishlist global
+  const isWishlisted = wishlist.includes(product.id);
+
+  // ================= HANDLERS =================
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault(); // Mencegah Link mengarahkan ke halaman detail
@@ -41,11 +43,20 @@ export default function ProductCard({
     }, 2000);
   };
 
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.preventDefault(); // Mencegah Link mengarahkan ke halaman detail
+    
+    if (!isCustomer) return;
+    
+    // Panggil fungsi global untuk pasang/lepas status wishlist
+    toggleWishlist(product.id);
+  };
+
   // ================= DISCOUNT =================
 
   const discount =
     product.originalPrice &&
-      product.originalPrice > product.price
+    product.originalPrice > product.price
       ? Math.round((1 - product.price / product.originalPrice) * 100)
       : 0;
 
@@ -57,10 +68,11 @@ export default function ProductCard({
       {/* ================= NOTIF ================= */}
 
       <div
-        className={`absolute top-4 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ${showNotif
+        className={`absolute top-4 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ${
+          showNotif
             ? 'translate-y-0 scale-100 opacity-100'
             : '-translate-y-3 scale-95 opacity-0 pointer-events-none'
-          }`}
+        }`}
       >
         <div className="flex items-center gap-2 rounded-2xl border border-white/20 bg-emerald-500/95 px-4 py-2 text-white shadow-2xl backdrop-blur-md">
           <CheckCircle2 className="h-4 w-4" />
@@ -73,15 +85,17 @@ export default function ProductCard({
       {/* ================= IMAGE ================= */}
 
       <div
-        className={`relative aspect-square overflow-hidden ${product.bgColor || 'bg-blue-50'
-          }`}
+        className={`relative aspect-square overflow-hidden ${
+          product.bgColor || 'bg-blue-50'
+        }`}
       >
         {/* BADGE LEFT */}
         {(product.isBestSeller || product.isNew) && (
           <div className="absolute left-3 top-3 z-20">
             <span
-              className={`rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow-md ${product.isNew ? 'bg-green-500' : 'bg-red-500'
-                }`}
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow-md ${
+                product.isNew ? 'bg-green-500' : 'bg-red-500'
+              }`}
             >
               {product.isNew ? 'Baru' : '🔥'}
             </span>
@@ -119,16 +133,14 @@ export default function ProductCard({
         {/* WISHLIST (Hanya aktif/bisa diklik jika role customer) */}
         <button
           disabled={!isCustomer}
-          onClick={(e) => {
-            e.preventDefault();
-            setIsWishlist(!isWishlist);
-          }}
-          className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all disabled:opacity-0 disabled:pointer-events-none ${isWishlist
+          onClick={handleWishlistToggle}
+          className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all disabled:opacity-0 disabled:pointer-events-none ${
+            isWishlisted
               ? 'bg-red-500 text-white'
               : 'bg-white/90 text-gray-400 hover:text-red-500'
-            }`}
+          }`}
         >
-          <Heart className="h-4 w-4" fill={isWishlist ? 'currentColor' : 'none'} />
+          <Heart className="h-4 w-4" fill={isWishlisted ? 'currentColor' : 'none'} />
         </button>
 
         {/* STOCK */}

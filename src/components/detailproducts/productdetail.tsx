@@ -12,8 +12,10 @@ import {
   RotateCcw,
   CheckCircle2,
   X,
-  AlertCircle
+  AlertCircle,
+  Heart // ➕ Import icon Heart dari lucide-react
 } from 'lucide-react';
+import { useApp } from '@/store/appcontext'; // ➕ Import useApp untuk modul wishlist global
 
 interface ProductDetailsProps {
   product: any;
@@ -22,7 +24,7 @@ interface ProductDetailsProps {
   handleAddToCart: (qty: number) => void;
   handleBuyNow: (qty: number) => void;
   formatRupiah: (n: number) => string;
-  isCustomer: boolean; // 👈 Menerima prop role check
+  isCustomer: boolean; // Menerima prop role check
 }
 
 export const ProductDetails = ({
@@ -34,9 +36,13 @@ export const ProductDetails = ({
   formatRupiah,
   isCustomer,
 }: ProductDetailsProps) => {
+  const { wishlist, toggleWishlist } = useApp(); // ➕ Dapatkan state wishlist global
   const [showNotif, setShowNotif] = React.useState(false);
   const [showModal, setShowModal] = React.useState(false);
   const [actionType, setActionType] = React.useState<'cart' | 'buy'>('cart');
+
+  // Periksa apakah produk ini saat ini ada di dalam array wishlist
+  const isWishlisted = wishlist?.includes(product.id);
 
   const openCartModal = () => {
     if (!isCustomer) return;
@@ -165,6 +171,21 @@ export const ProductDetails = ({
           Beli Sekarang
         </button>
       </div>
+
+      {/* 🛠️ TAMBAHAN: TOMBOL WISHLIST DI BAWAH BUTTON UTAMA */}
+      <button
+        type="button"
+        disabled={!isCustomer}
+        onClick={() => toggleWishlist(product.id)}
+        className={`w-full flex h-12 items-center justify-center gap-2 rounded-2xl border transition-all font-semibold text-sm disabled:opacity-40 ${
+          isWishlisted
+            ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+        }`}
+      >
+        <Heart className={`w-4 h-4 transition-transform ${isWishlisted ? 'text-red-500 scale-110' : ''}`} fill={isWishlisted ? 'currentColor' : 'none'} />
+        {isWishlisted ? 'Hapus dari Wishlist' : 'Tambah ke Wishlist'}
+      </button>
 
       {/* INFO NOTIFIKASI ROLE */}
       {!isCustomer && (

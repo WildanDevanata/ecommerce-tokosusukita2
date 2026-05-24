@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
-// ================= HELPERS: SAMAKAN FORMAT DENGAN FRONTEND =================
+
 // ================= HELPERS: SAMAKAN FORMAT DENGAN FRONTEND =================
 const formatOrderResponse = (order: any) => ({
   id: order.id,
@@ -60,13 +60,16 @@ export async function GET(
     const { id } = await context.params;
 
     const order = await prisma.order.findUnique({
-      where: { id },
+      // 💡 UBAH DI SINI: Cari berdasarkan kolom orderNumber, bukan id
+      where: { 
+        orderNumber: id 
+      },
       include: {
         user: true,
         items: {
           include: {
             product: true,
-            review: true, // 💡 KONSISTEN: Memastikan data review ikut terambil
+            review: true,
           },
         },
       },

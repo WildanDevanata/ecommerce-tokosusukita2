@@ -7,8 +7,8 @@ import {
   LayoutDashboard, Package, ShoppingBag, Grid3X3, CreditCard, Building2,
   BarChart3, Users, Bell, LogOut, Menu, X, ChevronRight, User
 } from 'lucide-react';
-import { useApp } from '@/store/appcontext'; // Sesuaikan path alias kamu
-import { formatDate } from '@/lib/utils'; // Menggunakan utils yang baru kita buat
+import { useApp } from '@/store/appcontext'; 
+import { formatDate } from '@/lib/utils'; 
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
@@ -22,7 +22,16 @@ const menuItems = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { currentUser, logout, notifications = [], unreadCount = 0, markNotificationRead, markAllNotificationsRead } = useApp();
+  // 🛠️ Bersih dari nilai fallback manual karena TypeScript sudah mengenali tipenya sekarang
+  const { 
+    currentUser, 
+    logout, 
+    notifications, 
+    unreadCount, 
+    markNotificationRead, 
+    markAllNotificationsRead 
+  } = useApp();
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userDropOpen, setUserDropOpen] = useState(false);

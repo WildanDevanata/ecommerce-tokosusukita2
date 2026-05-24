@@ -24,15 +24,9 @@ import type {
   CourierResult,
   SelectedShipping,
 } from '@/lib/types';
-import citiesData from '@/lib/cities.json'; // Impor langsung
 
-const courierMap: Record<string, string> = {
-  'JNE': 'jne',
-  'SiCepat': 'sicepat',
-  'J&T': 'jnt',
-  'TIKI': 'tiki',
-  'POS': 'pos'
-};
+import citiesData from '@/lib/cities.json';
+
 // ================= HELPERS =================
 
 const formatRupiah = (value: number) => {
@@ -49,6 +43,8 @@ type PaymentMethod =
   | 'TRANSFER'
   | 'MIDTRANS'
   | 'EWALLET';
+
+// ================= COMPONENT =================
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -71,7 +67,8 @@ export default function CheckoutPage() {
   const [selectedBank, setSelectedBank] =
     useState('');
 
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] =
+    useState('');
 
   const [loading, setLoading] =
     useState(false);
@@ -117,56 +114,99 @@ export default function CheckoutPage() {
 
   // ================= FETCH ONGKIR =================
 
-  // Di dalam CheckoutPage.tsx
-// ================= FETCH ONGKIR =================
-// Di dalam CheckoutPage.tsx
-// ================= FETCH ONGKIR =================
-useEffect(() => {
-  async function fetchOngkir() {
-    // Pastikan courier ada dan ada di dalam mapping kita
-    if (!address?.city || !courier || !courierMap[courier]) return;
+  useEffect(() => {
+    async function fetchOngkir() {
+      if (!address?.city || !courier) return;
 
-    const foundCity = citiesData.find(
-      (c) => c.city_name.toLowerCase().trim() === address.city.toLowerCase().trim()
-    );
+      try {
+        setLoadingOngkir(true);
 
-    if (!foundCity) {
-      console.error("Kota tidak ditemukan di data lokal:", address.city);
-      return;
+        // Cari kota tujuan berdasarkan nama kota user
+        const foundCity = citiesData.find(
+          (city: any) =>
+            city.city_name
+              .toLowerCase()
+              .trim() ===
+            address.city
+              .toLowerCase()
+              .trim()
+        );
+
+        if (!foundCity) {
+          console.error(
+            'Kota tidak ditemukan:',
+            address.city
+          );
+
+          setOngkirResults([]);
+
+          return;
+        }
+
+        const response = await fetch(
+          '/api/rajaongkir/cost',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+            body: JSON.stringify({
+              origin:
+                process.env
+                  .NEXT_PUBLIC_SELLER_CITY_ID ||
+                '501',
+
+              destination:
+                foundCity.city_id,
+
+              courier,
+
+              weight: 1000,
+            }),
+          }
+        );
+
+        const result =
+          await response.json();
+
+        console.log(
+          'ONGKIR RESPONSE:',
+          result
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            result?.message ||
+              'Gagal mengambil ongkir'
+          );
+        }
+
+        // SUPPORT 2 FORMAT RESPONSE
+        if (Array.isArray(result)) {
+          setOngkirResults(result);
+        } else if (
+          result?.data &&
+          Array.isArray(result.data)
+        ) {
+          setOngkirResults(result.data);
+        } else {
+          setOngkirResults([]);
+        }
+      } catch (error) {
+        console.error(
+          'FETCH ONGKIR ERROR:',
+          error
+        );
+
+        setOngkirResults([]);
+      } finally {
+        setLoadingOngkir(false);
+      }
     }
 
-    try {
-      setLoadingOngkir(true);
-      
-      // Mengambil kode kecil (jne, tiki, dll) berdasarkan pilihan user
-      const courierCode = courierMap[courier]; 
-
-      const res = await fetch('/api/rajaongkir/cost', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          origin: "224", // Magetan
-          destination: foundCity.city_id,
-          courier: courierCode, // Sekarang variabel ini sudah terdefinisi
-          weight: 1000,
-        }),
-      });
-
-      const result = await res.json(); 
-      
-      if (!res.ok) throw new Error(result.meta?.message || 'Gagal ambil ongkir');
-      
-      setOngkirResults(result.data || []);
-
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingOngkir(false);
-    }
-  }
-
-  fetchOngkir();
-}, [address?.city, courier]); // Dependencies sudah benar
+    fetchOngkir();
+  }, [address?.city, courier]);
 
   // ================= LOADING =================
 
@@ -188,179 +228,212 @@ useEffect(() => {
 
   const cartTotal = cart.reduce(
     (total, item) =>
-      total + item.price * item.quantity,
+      total +
+      item.price * item.quantity,
     0
   );
 
   const shippingCost =
     selectedShipping?.cost || 0;
 
-  const total = cartTotal + shippingCost;
+  const total =
+    cartTotal + shippingCost;
 
   const activeBanks = bankAccounts
-    ? bankAccounts.filter((b) => b.isActive)
+    ? bankAccounts.filter(
+        (b) => b.isActive
+      )
     : [];
 
   // ================= PLACE ORDER =================
 
-  const handlePlaceOrder = async () => {
-    if (!currentUser || !address) return;
+  const handlePlaceOrder =
+    async () => {
+      if (!currentUser || !address)
+        return;
 
-    if (!selectedShipping) {
-      alert(
-        'Pilih layanan pengiriman terlebih dahulu'
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const payload = {
-        userId: currentUser.id,
-
-        totalAmount: total,
-
-        shippingCost,
-
-        paymentMethod,
-
-        courier:
-          selectedShipping.courier.toUpperCase(),
-
-        shippingService:
-          selectedShipping.service,
-
-        shippingEtd:
-          selectedShipping.etd,
-
-        notes,
-
-        paymentStatus: 'PENDING',
-
-        status: 'PENDING',
-
-        shippingRecipient:
-          address.recipientName,
-
-        shippingPhone: address.phone,
-
-        shippingAddress: address.address,
-
-        shippingCity: address.city,
-
-        shippingProvince:
-          address.province,
-
-        shippingPostalCode:
-          address.postalCode,
-
-        items: cart.map((item) => ({
-          productId: item.id,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-      };
-
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        throw new Error(
-          'Gagal membuat pesanan'
+      if (!selectedShipping) {
+        alert(
+          'Pilih layanan pengiriman terlebih dahulu'
         );
+
+        return;
       }
 
-      const order = await res.json();
+      try {
+        setLoading(true);
 
-      await refreshOrders();
+        const payload = {
+          userId: currentUser.id,
 
-      localStorage.removeItem('cart');
+          totalAmount: total,
 
-      // ================= MIDTRANS =================
+          shippingCost,
 
-      if (paymentMethod === 'MIDTRANS') {
-        if (
-          order.snapToken &&
-          (window as any).snap
-        ) {
-          (window as any).snap.pay(
-            order.snapToken,
-            {
-              onSuccess: async () => {
-                try {
-                  await fetch(
-                    `/api/orders/${order.id}`,
-                    {
-                      method: 'PATCH',
-                      headers: {
-                        'Content-Type':
-                          'application/json',
-                      },
-                      body: JSON.stringify({
-                        paymentStatus: 'PAID',
-                        status: 'CONFIRMED',
-                      }),
-                    }
-                  );
-                } catch (updateErr) {
-                  console.error(updateErr);
-                }
+          paymentMethod,
 
-                await refreshOrders();
+          courier:
+            selectedShipping.courier.toUpperCase(),
 
-                router.push(
-                  `/customer/orders/${order.id}`
-                );
-              },
+          shippingService:
+            selectedShipping.service,
 
-              onPending: () => {
-                router.push(
-                  `/customer/orders/${order.id}`
-                );
-              },
+          shippingEtd:
+            selectedShipping.etd,
 
-              onError: () => {
-                alert(
-                  'Pembayaran gagal'
-                );
+          notes,
 
-                router.push(
-                  `/customer/orders/${order.id}`
-                );
-              },
+          paymentStatus: 'PENDING',
 
-              onClose: () => {
-                router.push(
-                  `/customer/orders/${order.id}`
-                );
-              },
-            }
-          );
-        } else {
-          alert(
-            'Gagal memuat Midtrans'
+          status: 'PENDING',
+
+          shippingRecipient:
+            address.recipientName,
+
+          shippingPhone:
+            address.phone,
+
+          shippingAddress:
+            address.address,
+
+          shippingCity:
+            address.city,
+
+          shippingProvince:
+            address.province,
+
+          shippingPostalCode:
+            address.postalCode,
+
+          items: cart.map(
+            (item) => ({
+              productId: item.id,
+              quantity:
+                item.quantity,
+              price: item.price,
+            })
+          ),
+        };
+
+        const res = await fetch(
+          '/api/orders',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+            body: JSON.stringify(
+              payload
+            ),
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(
+            'Gagal membuat pesanan'
           );
         }
-      } else {
-        router.push(
-          `/customer/orders/${order.id}`
-        );
-      }
-    } catch (err) {
-      console.error(err);
 
-      alert('Gagal membuat pesanan');
-    } finally {
-      setLoading(false);
-    }
-  };
+        const order =
+          await res.json();
+
+        await refreshOrders();
+
+        localStorage.removeItem(
+          'cart'
+        );
+
+        // ================= MIDTRANS =================
+
+        if (
+          paymentMethod ===
+          'MIDTRANS'
+        ) {
+          if (
+            order.snapToken &&
+            (window as any).snap
+          ) {
+            (window as any).snap.pay(
+              order.snapToken,
+              {
+                onSuccess:
+                  async () => {
+                    try {
+                      await fetch(
+                        `/api/orders/${order.id}`,
+                        {
+                          method:
+                            'PATCH',
+
+                          headers: {
+                            'Content-Type':
+                              'application/json',
+                          },
+
+                          body: JSON.stringify(
+                            {
+                              paymentStatus:
+                                'PAID',
+
+                              status:
+                                'CONFIRMED',
+                            }
+                          ),
+                        }
+                      );
+                    } catch (err) {
+                      console.error(
+                        err
+                      );
+                    }
+
+                    await refreshOrders();
+
+                    router.push(
+                      `/customer/orders/${order.id}`
+                    );
+                  },
+
+                onPending: () => {
+                  router.push(
+                    `/customer/orders/${order.id}`
+                  );
+                },
+
+                onError: () => {
+                  alert(
+                    'Pembayaran gagal'
+                  );
+
+                  router.push(
+                    `/customer/orders/${order.id}`
+                  );
+                },
+
+                onClose: () => {
+                  router.push(
+                    `/customer/orders/${order.id}`
+                  );
+                },
+              }
+            );
+          }
+        } else {
+          router.push(
+            `/customer/orders/${order.id}`
+          );
+        }
+      } catch (error) {
+        console.error(error);
+
+        alert(
+          'Gagal membuat pesanan'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // ================= PAYMENT METHODS =================
 
@@ -386,6 +459,8 @@ useEffect(() => {
       emoji: '📱',
     },
   ] as const;
+
+  // ================= UI =================
 
   return (
     <>
@@ -414,7 +489,9 @@ useEffect(() => {
                 Beranda
               </Link>
 
-              <span className="mx-2">/</span>
+              <span className="mx-2">
+                /
+              </span>
 
               <Link
                 href="/customer/cart"
@@ -423,7 +500,9 @@ useEffect(() => {
                 Keranjang
               </Link>
 
-              <span className="mx-2">/</span>
+              <span className="mx-2">
+                /
+              </span>
 
               <span className="text-gray-800">
                 Checkout
@@ -452,13 +531,21 @@ useEffect(() => {
                       Alamat Pengiriman
                     </h3>
                   </div>
-                  <Link href="/customer/profile?tab=address" className="text-sm text-blue-600 hover:underline">Ubah</Link>
+
+                  <Link
+                    href="/customer/profile?tab=address"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Ubah
+                  </Link>
                 </div>
 
                 {address ? (
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
                     <p className="font-medium text-gray-800">
-                      {address.recipientName}
+                      {
+                        address.recipientName
+                      }
                     </p>
 
                     <p className="text-sm text-gray-600">
@@ -468,7 +555,9 @@ useEffect(() => {
                     <p className="text-sm text-gray-600 mt-1">
                       {address.address},{' '}
                       {address.city},{' '}
-                      {address.province}
+                      {
+                        address.province
+                      }
                     </p>
                   </div>
                 ) : (
@@ -487,20 +576,37 @@ useEffect(() => {
 
                 <CourierSelect
                   selected={courier}
-                  onChange={(value) => {
-                    setCourier(value);
-                    setSelectedShipping(null);
+                  onChange={(
+                    value
+                  ) => {
+                    setCourier(
+                      value
+                    );
+
+                    setSelectedShipping(
+                      null
+                    );
                   }}
                 />
 
                 <div className="mt-5">
                   <OngkirResult
-                    results={ongkirResults}
-                    selected={selectedShipping}
-                    onSelect={
-                      setSelectedShipping
+                    results={
+                      ongkirResults
                     }
-                    loading={loadingOngkir}
+                    selected={
+                      selectedShipping
+                    }
+                    onSelect={(
+                      shipping
+                    ) => {
+                      setSelectedShipping(
+                        shipping
+                      );
+                    }}
+                    loading={
+                      loadingOngkir
+                    }
                   />
                 </div>
               </div>
@@ -520,7 +626,9 @@ useEffect(() => {
                   {paymentMethods.map(
                     (method) => (
                       <label
-                        key={method.id}
+                        key={
+                          method.id
+                        }
                         className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${
                           paymentMethod ===
                           method.id
@@ -543,16 +651,22 @@ useEffect(() => {
                         />
 
                         <span className="text-xl">
-                          {method.emoji}
+                          {
+                            method.emoji
+                          }
                         </span>
 
                         <div>
                           <p className="text-sm font-medium text-gray-800">
-                            {method.label}
+                            {
+                              method.label
+                            }
                           </p>
 
                           <p className="text-xs text-gray-500">
-                            {method.desc}
+                            {
+                              method.desc
+                            }
                           </p>
                         </div>
                       </label>
@@ -564,7 +678,10 @@ useEffect(() => {
                   <textarea
                     value={notes}
                     onChange={(e) =>
-                      setNotes(e.target.value)
+                      setNotes(
+                        e.target
+                          .value
+                      )
                     }
                     rows={3}
                     placeholder="Catatan pesanan..."
@@ -584,46 +701,61 @@ useEffect(() => {
                 </h3>
 
                 <div className="space-y-3 mb-4">
-                  {cart.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {item.name}
-                        </p>
+                  {cart.map(
+                    (item) => (
+                      <div
+                        key={
+                          item.id
+                        }
+                        className="flex justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-medium">
+                            {
+                              item.name
+                            }
+                          </p>
 
-                        <p className="text-xs text-gray-500">
-                          {item.quantity} x{' '}
+                          <p className="text-xs text-gray-500">
+                            {
+                              item.quantity
+                            }{' '}
+                            x{' '}
+                            {formatRupiah(
+                              item.price
+                            )}
+                          </p>
+                        </div>
+
+                        <p className="text-sm font-bold">
                           {formatRupiah(
-                            item.price
+                            item.price *
+                              item.quantity
                           )}
                         </p>
                       </div>
-
-                      <p className="text-sm font-bold">
-                        {formatRupiah(
-                          item.price *
-                            item.quantity
-                        )}
-                      </p>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
 
                 <div className="border-t border-gray-100 pt-4 space-y-2">
 
                   <div className="flex justify-between text-sm">
-                    <span>Subtotal</span>
+                    <span>
+                      Subtotal
+                    </span>
 
                     <span>
-                      {formatRupiah(cartTotal)}
+                      {formatRupiah(
+                        cartTotal
+                      )}
                     </span>
                   </div>
 
                   <div className="flex justify-between text-sm">
-                    <span>Ongkir</span>
+                    <span>
+                      Ongkir
+                    </span>
 
                     <span>
                       {formatRupiah(
@@ -636,13 +768,17 @@ useEffect(() => {
                     <span>Total</span>
 
                     <span className="text-blue-700">
-                      {formatRupiah(total)}
+                      {formatRupiah(
+                        total
+                      )}
                     </span>
                   </div>
                 </div>
 
                 <button
-                  onClick={handlePlaceOrder}
+                  onClick={
+                    handlePlaceOrder
+                  }
                   disabled={
                     loading ||
                     loadingOngkir ||

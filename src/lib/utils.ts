@@ -51,56 +51,36 @@ export const getPaymentStatusColor = (status: string) => {
 
 // ================= ORDER STATUS =================
 
-export const getOrderStatusLabel = (
-  status: string
-) => {
+export function getOrderStatusLabel(status: string) {
   switch (status) {
-    case 'PENDING':
-      return 'Menunggu';
-
-    case 'CONFIRMED':
-      return 'Dikonfirmasi';
-
-    case 'PROCESSING':
-      return 'Diproses';
-
-    case 'SHIPPED':
-      return 'Dikirim';
-
-    case 'DELIVERED':
-      return 'Selesai';
-
-    case 'CANCELLED':
-      return 'Dibatalkan';
-
-    default:
-      return 'Unknown';
+    case 'PENDING': return 'Belum Bayar';
+    case 'CONFIRMED': return 'Dikonfirmasi';
+    case 'PROCESSING': return 'Diproses';
+    case 'SHIPPED': return 'Dikirim';
+    case 'DELIVERED': return 'Selesai (Diterima)';
+    
+    // ✅ TAMBAHKAN DI SINI AGAR ADMIN TAHU PESANAN SUDAH DIULAS
+    case 'REVIEWED': 
+      return 'Reviewed'; // Atau 'Sudah Dinilai' / 'Selesai (Diulas)'
+      
+    case 'CANCELLED': return 'Dibatalkan';
+    default: return status; // Fallback langsung ke string aslinya jika tidak cocok
   }
-};
+}
 
-export const getOrderStatusColor = (
-  status: string
-) => {
+export function getOrderStatusColor(status: string) {
   switch (status) {
-    case 'PENDING':
-      return 'bg-yellow-100 text-yellow-700';
-
-    case 'CONFIRMED':
-      return 'bg-blue-100 text-blue-700';
-
-    case 'PROCESSING':
-      return 'bg-indigo-100 text-indigo-700';
-
-    case 'SHIPPED':
-      return 'bg-purple-100 text-purple-700';
-
-    case 'DELIVERED':
-      return 'bg-green-100 text-green-700';
-
-    case 'CANCELLED':
-      return 'bg-red-100 text-red-700';
-
-    default:
-      return 'bg-gray-100 text-gray-700';
+    case 'PENDING': return 'bg-amber-100 text-amber-700';
+    case 'CONFIRMED': return 'bg-blue-100 text-blue-700';
+    case 'PROCESSING': return 'bg-indigo-100 text-indigo-700';
+    case 'SHIPPED': return 'bg-purple-100 text-purple-700';
+    case 'DELIVERED': return 'bg-green-100 text-green-700';
+    
+    // ✅ BERI WARNA KHUSUS UNTUK ADMIN (Misal: Hijau Emerald atau Biru Teal)
+    case 'REVIEWED': 
+      return 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+      
+    case 'CANCELLED': return 'bg-red-100 text-red-700';
+    default: return 'bg-gray-100 text-gray-700';
   }
-};
+}

@@ -1,60 +1,136 @@
-import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
-import midtransClient from "midtrans-client"; // 1. IMPORT MIDTRANS SDK
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
+import midtransClient from 'midtrans-client';
 
-// ================= HELPERS: ENRICH ORDER DATA =================
-// Kita buat fungsi pembantu agar format response GET dan POST selalu sama persis
-// ================= HELPERS: ENRICH ORDER DATA =================
+// ================= HELPERS =================
+
 const enrichOrderData = (order: any) => ({
   id: order.id,
   userId: order.userId,
+
   orderNumber: order.orderNumber,
-  userName: order.user?.name || order.shippingRecipient || "Guest",
-  userEmail: order.user?.email || "-",
+
+  userName:
+    order.user?.name ||
+    order.shippingRecipient ||
+    'Guest',
+
+  userEmail:
+    order.user?.email || '-',
+
   totalAmount: order.totalAmount,
-  shippingCost: order.shippingCost,
-  paymentStatus: order.paymentStatus,
-  paymentMethod: order.paymentMethod,
-  paymentProofUrl: order.paymentProofUrl || (order as any).payment?.paymentProof || null,
+
+  shippingCost:
+    order.shippingCost || 0,
+
+  paymentStatus:
+    order.paymentStatus,
+
+  paymentMethod:
+    order.paymentMethod,
+
+  paymentProofUrl:
+    order.paymentProofUrl ||
+    (order as any).payment?.paymentProof ||
+    null,
+
   status: order.status,
+
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
-  trackingNumber: order.trackingNumber,
-  courier: order.courier,
+
+  trackingNumber:
+    order.trackingNumber || null,
+
+  courier:
+    order.courier || null,
+
+  shippingService:
+    order.shippingService || null,
+
+  shippingEtd:
+    order.shippingEtd || null,
+
   notes: order.notes,
-  snapToken: order.snapToken || null, 
-  
+
+  snapToken:
+    order.snapToken || null,
+
   items: order.items.map((item: any) => ({
     id: item.id,
+
     productId: item.productId,
-    productName: item.product?.name || "Produk",
+
+    productName:
+      item.product?.name || 'Produk',
+
     quantity: item.quantity,
+
     price: item.price,
+
     isReviewed: !!item.review,
-    productBgColor: "bg-gray-100",
-    image: item.product?.image || null,
-    
-    // 💡 TAMBAHKAN BARIS INI: Agar data ulasan ikut lolos ke komponen list frontend!
-    review: item.review || null, 
+
+    productBgColor:
+      'bg-gray-100',
+
+    image:
+      item.product?.image || null,
+
+    review:
+      item.review || null,
   })),
-  
+
+  // ================= SHIPPING ADDRESS =================
+
   shippingAddress: {
-    recipientName: order.shippingRecipient,
-    phone: order.shippingPhone,
-    address: order.shippingAddress,
-    city: order.shippingCity,
-    province: order.shippingProvince,
-    postalCode: order.shippingPostalCode,
+    recipientName:
+      order.shippingRecipient,
+
+    phone:
+      order.shippingPhone,
+
+    address:
+      order.shippingAddress,
+
+    city:
+      order.shippingCity,
+
+    province:
+      order.shippingProvince,
+
+    postalCode:
+      order.shippingPostalCode,
+  },
+
+  // ================= SHIPPING INFO =================
+
+  shippingInfo: {
+    courier:
+      order.courier || '-',
+
+    service:
+      order.shippingService || '-',
+
+    etd:
+      order.shippingEtd || '-',
+
+    cost:
+      order.shippingCost || 0,
+
+    trackingNumber:
+      order.trackingNumber || '-',
   },
 });
 
-// ================= GET HANDLER =================
+// ================= GET =================
+
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
       include: {
         user: true,
+
         items: {
           include: {
             product: true,
@@ -62,123 +138,273 @@ export async function GET() {
           },
         },
       },
+
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
     });
 
-    const enrichedOrders = orders.map((order) => enrichOrderData(order));
-    return NextResponse.json(enrichedOrders);
+    const enrichedOrders = orders.map((order) => {
+
+  // cek semua item sudah direview
+  const allReviewed =
+    order.items.length > 0 &&
+    order.items.every(
+      (item: any) => item.review
+    );
+
+  return enrichOrderData({
+    ...order,
+
+    // override status otomatis
+    status:
+      allReviewed
+        ? 'REVIEWED'
+        : order.status,
+  });
+});
+
+    return NextResponse.json(
+      enrichedOrders
+    );
   } catch (error) {
     console.error(error);
+
     return NextResponse.json(
-      { error: "Gagal mengambil data orders" },
-      { status: 500 }
+      {
+        error:
+          'Gagal mengambil data orders',
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
 
-// ================= POST HANDLER =================
-export async function POST(req: Request) {
+// ================= POST =================
+
+export async function POST(
+  req: Request
+) {
   try {
     const body = await req.json();
+
     const orderNumber = `ORD-${Date.now()}`;
 
-    // 1. Simpan pesanan ke database terlebih dahulu
+    // ================= CREATE ORDER =================
+
     let order = await prisma.order.create({
       data: {
         orderNumber,
-        totalAmount: body.totalAmount,
-        shippingCost: body.shippingCost || 0,
-        paymentMethod: body.paymentMethod,
-        paymentStatus: body.paymentStatus || "PENDING",
-        status: body.status || "PENDING",
-        trackingNumber: body.trackingNumber,
-        courier: body.courier,
-        notes: body.notes,
-        paymentProofUrl: body.paymentProofUrl,
+
+        totalAmount:
+          body.totalAmount,
+
+        shippingCost:
+          body.shippingCost || 0,
+
+        paymentMethod:
+          body.paymentMethod,
+
+        paymentStatus:
+          body.paymentStatus ||
+          'PENDING',
+
+        status:
+          body.status || 'PENDING',
+
+        trackingNumber:
+          body.trackingNumber || null,
+
+        courier:
+          body.courier || null,
+
+        // ✅ TAMBAHAN
+        shippingService:
+          body.shippingService || null,
+
+        shippingEtd:
+          body.shippingEtd || null,
+
+        notes:
+          body.notes || null,
+
+        paymentProofUrl:
+          body.paymentProofUrl ||
+          null,
+
         user: {
-          connect: { id: body.userId },
+          connect: {
+            id: body.userId,
+          },
         },
-        shippingRecipient: body.shippingRecipient,
-        shippingPhone: body.shippingPhone,
-        shippingAddress: body.shippingAddress,
-        shippingCity: body.shippingCity,
-        shippingProvince: body.shippingProvince,
-        shippingPostalCode: body.shippingPostalCode,
+
+        // ================= SHIPPING ADDRESS =================
+
+        shippingRecipient:
+          body.shippingRecipient,
+
+        shippingPhone:
+          body.shippingPhone,
+
+        shippingAddress:
+          body.shippingAddress,
+
+        shippingCity:
+          body.shippingCity,
+
+        shippingProvince:
+          body.shippingProvince,
+
+        shippingPostalCode:
+          body.shippingPostalCode,
+
+        // ================= ITEMS =================
+
         items: {
-          create: body.items.map((item: any) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: item.price,
-          })),
+          create: body.items.map(
+            (item: any) => ({
+              productId:
+                item.productId,
+
+              quantity:
+                item.quantity,
+
+              price:
+                item.price,
+            })
+          ),
         },
       },
+
       include: {
         user: true,
+
         items: {
-          include: { product: true },
+          include: {
+            product: true,
+            review: true,
+          },
         },
       },
     });
 
     let snapToken = null;
 
-    // 2. JIKA METODE PEMBAYARAN ADALAH MIDTRANS, MINTA TOKEN KE SERVER MIDTRANS
-    if (body.paymentMethod === 'MIDTRANS') {
-      const snap = new midtransClient.Snap({
-        isProduction: false, // Gunakan false untuk lingkungan Sandbox (Testing)
-        serverKey: process.env.MIDTRANS_SERVER_KEY || '',
-        clientKey: process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || ''
-      });
+    // ================= MIDTRANS =================
+
+    if (
+      body.paymentMethod ===
+      'MIDTRANS'
+    ) {
+      const snap =
+        new midtransClient.Snap({
+          isProduction: false,
+
+          serverKey:
+            process.env
+              .MIDTRANS_SERVER_KEY || '',
+
+          clientKey:
+            process.env
+              .NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ||
+            '',
+        });
 
       const parameter = {
         transaction_details: {
-          order_id: `${order.id}-${Date.now()}`, // Gabungkan dengan timestamp agar ID selalu unik di sandbox
-          gross_amount: body.totalAmount,
+          order_id: `${order.id}-${Date.now()}`,
+
+          gross_amount:
+            body.totalAmount,
         },
+
         customer_details: {
-          first_name: order.user?.name || body.shippingRecipient,
-          email: order.user?.email || undefined,
-          phone: body.shippingPhone,
+          first_name:
+            order.user?.name ||
+            body.shippingRecipient,
+
+          email:
+            order.user?.email ||
+            undefined,
+
+          phone:
+            body.shippingPhone,
         },
+
         credit_card: {
-          secure: true
-        }
+          secure: true,
+        },
       };
 
-      // Minta token transaksi ke Midtrans
-      const transaction = await snap.createTransaction(parameter);
-      snapToken = transaction.token;
+      const transaction =
+        await snap.createTransaction(
+          parameter
+        );
 
-      // (Opsional) Update snapToken ke database jika field tersebut ada di skema database Anda
+      snapToken =
+        transaction.token;
+
+      // ================= SAVE SNAP TOKEN =================
+
       try {
         await prisma.order.update({
-          where: { id: order.id },
-          data: { snapToken: snapToken } as any // Typecast as any jika field belum migrasi di Prisma schema
+          where: {
+            id: order.id,
+          },
+
+          data: {
+            snapToken:
+              snapToken,
+          } as any,
         });
       } catch (e) {
-        // Abaikan jika kolom snapToken memang belum dibuat di schema database
+        console.log(
+          'Kolom snapToken belum tersedia'
+        );
       }
     }
 
-    // Pemicu pembersihan cache Next.js
-    revalidatePath("/customer/orders");
-    revalidatePath(`/customer/orders/${order.id}`);
+    // ================= REVALIDATE =================
 
-    // 3. KEMBALIKAN DATA DENGAN FORMAT YANG SAMA SEPERTI FUNGSI GET
-    // Pasang snapToken yang didapat ke dalam hasil return object
+    revalidatePath(
+      '/customer/orders'
+    );
+
+    revalidatePath(
+      `/customer/orders/${order.id}`
+    );
+
+    revalidatePath(
+      '/admin/orders'
+    );
+
+    // ================= FINAL RESPONSE =================
+
     const finalResponse = {
       ...enrichOrderData(order),
-      snapToken: snapToken
+
+      snapToken,
     };
 
-    return NextResponse.json(finalResponse);
-  } catch (error) {
-    console.error("Error pada POST Order:", error);
     return NextResponse.json(
-      { error: "Gagal membuat pesanan" },
-      { status: 500 }
+      finalResponse
+    );
+  } catch (error) {
+    console.error(
+      'Error POST Order:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Gagal membuat pesanan',
+      },
+      {
+        status: 500,
+      }
     );
   }
 }

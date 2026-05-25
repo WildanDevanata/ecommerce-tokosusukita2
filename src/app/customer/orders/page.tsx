@@ -108,13 +108,20 @@ export default function OrdersPage() {
     if (activeTab === 'ALL') {
       matchesTab = true;
     } else if (activeTab === 'REVIEW') {
-      matchesTab = order.status === 'DELIVERED';
-    } else {
+  matchesTab =
+    order.status === 'DELIVERED' ||
+    order.status === 'REVIEWED';
+} else {
       matchesTab = order.status === activeTab;
     }
 
     if (activeTab === 'REVIEW' && matchesTab) {
-      const isAllItemsReviewed = order.items?.every((item: any) => item.isReviewed === true) || false;
+      const isAllItemsReviewed =
+  order.status === 'REVIEWED' ||
+  order.items?.every(
+    (item: any) =>
+      item.isReviewed === true
+  ) || false;
       matchesTab = activeReviewSubTab === 'NOT_REVIEWED' ? !isAllItemsReviewed : isAllItemsReviewed;
     }
 
@@ -175,28 +182,49 @@ export default function OrdersPage() {
     setIsDeliveredModalOpen(true);
   };
 
-  const confirmDeliveredOrder = async () => {
-    if (!selectedOrderId) return;
+const confirmDeliveredOrder = async () => {
+    // Cari data object order lengkap berdasarkan selectedOrderId yang disimpan saat tombol diklik
+    const currentOrder = orders.find((o: any) => o.id === selectedOrderId);
+    
+    // Keamanan: Jika order tidak ditemukan atau tidak memiliki orderNumber, batalkan proses
+    if (!currentOrder || !currentOrder.orderNumber) {
+      alert("Data pesanan tidak valid.");
+      return;
+    }
 
     try {
       setDeliveringId(selectedOrderId);
       setIsDeliveredModalOpen(false);
 
-      const res = await fetch(`/api/orders/${selectedOrderId}/delivered`, {
-        method: 'POST'
+      // 🎯 SOLUSI: Tembak ke API Route dynamic menggunakan orderNumber, bukan internal database ID
+      const res = await fetch(`/api/orders/${currentOrder.orderNumber}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'DELIVERED', // Mengirim payload status baru untuk diperbarui dynamic oleh backend
+        }),
       });
 
+      const json = await res.json();
+
       if (res.ok) {
+        // Update state global AppContext menggunakan internal ID agar UI berubah secara realtime
         setOrders((prev: any[]) => 
           prev.map(o => o.id === selectedOrderId ? { ...o, status: 'DELIVERED' } : o)
         );
+        
         alert('Terima kasih! Pesanan diselesaikan, silakan beri ulasan terbaik Anda.');
+        
+        // Pindahkan user secara seamless ke filter tab review -> belum dinilai
         setActiveTab('REVIEW');
         setActiveReviewSubTab('NOT_REVIEWED');
       } else {
-        alert('Gagal memperbarui status pesanan.');
+        alert(json.error || 'Gagal memperbarui status pesanan.');
       }
     } catch (err) {
+      console.error("Error updating order status:", err);
       alert('Terjadi masalah koneksi internet.');
     } finally {
       setDeliveringId(null);
@@ -270,6 +298,7 @@ export default function OrdersPage() {
       setIsSubmittingReview(true);
       const updatedItems = [...selectedOrderForReview.items];
 
+      // 1. Loop untuk mengirim review setiap produk
       for (const item of updatedItems) {
         if (item.review) continue;
 
@@ -300,18 +329,50 @@ export default function OrdersPage() {
         });
 
         if (res.ok) {
-         item.isReviewed = true;
+          item.isReviewed = true;
+          item.review = true;
         }
       }
 
-      setOrders((prev: any[]) => 
-        prev.map(o => o.id === selectedOrderForReview.id ? { ...o, items: updatedItems } : o)
+      // 2. Cek apakah SEMUA item di dalam pesanan ini sudah diulas
+      const allReviewed = updatedItems.every((item: any) => item.isReviewed);
+
+      // ✅ 3. UPDATE STATUS ORDER KE DATABASE (Jika semua item selesai diulas)
+      if (allReviewed) {
+        const resOrder = await fetch(`/api/orders/${selectedOrderForReview.orderNumber}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'REVIEWED', // Mengubah status menjadi REVIEWED di database
+          }),
+        });
+        
+        if (!resOrder.ok) {
+          console.error("Gagal memperbarui status order ke REVIEWED di server");
+        }
+      }
+
+      // ✅ 4. SINKRONISASI STATE LOKAL APCCONTEXT (Perbaikan Utama)
+      setOrders((prev: any[]) =>
+        prev.map((o) =>
+          o.id === selectedOrderForReview.id
+            ? {
+                ...o,
+                items: updatedItems,
+                status: allReviewed ? 'REVIEWED' : o.status, // State lokal ikut berubah ke REVIEWED
+              }
+            : o
+        )
       );
       
       alert('Terima kasih! Ulasan berhasil disimpan.');
       setIsReviewModalOpen(false);
+      
+      // ✅ 5. Otomatis pindahkan tab active ke "Sudah Dinilai"
+      setActiveTab('REVIEW');
       setActiveReviewSubTab('REVIEWED');
     } catch (error) {
+      console.error(error);
       alert('Gagal menyimpan ulasan');
     } finally {
       setIsSubmittingReview(false);

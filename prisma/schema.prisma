@@ -22,6 +22,7 @@ enum OrderStatus {
   PROCESSING
   SHIPPED
   DELIVERED
+  REVIEWED
   CANCELLED
 }
 
@@ -141,6 +142,8 @@ model Order {
   snapToken         String?
   trackingNumber    String?
   courier           String?
+  shippingService   String?
+  shippingEtd       String?
   notes             String?
   paymentProofUrl   String?
   

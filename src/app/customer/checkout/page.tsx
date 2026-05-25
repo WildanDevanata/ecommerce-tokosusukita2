@@ -263,57 +263,52 @@ export default function CheckoutPage() {
       try {
         setLoading(true);
 
-        const payload = {
-          userId: currentUser.id,
+       const payload = {
+  userId: currentUser.id,
 
-          totalAmount: total,
+  totalAmount: total,
 
-          shippingCost,
+  shippingCost:
+    selectedShipping.cost,
 
-          paymentMethod,
+  paymentMethod,
 
-          courier:
-            selectedShipping.courier.toUpperCase(),
+  courier:
+    selectedShipping.courier.toUpperCase(),
 
-          shippingService:
-            selectedShipping.service,
+  shippingService:
+    selectedShipping.service,
 
-          shippingEtd:
-            selectedShipping.etd,
+  shippingEtd:
+    selectedShipping.etd,
 
-          notes,
+  notes,
 
-          paymentStatus: 'PENDING',
+  paymentStatus: 'PENDING',
 
-          status: 'PENDING',
+  status: 'PENDING',
 
-          shippingRecipient:
-            address.recipientName,
+  shippingRecipient:
+    address.recipientName,
 
-          shippingPhone:
-            address.phone,
+  shippingPhone: address.phone,
 
-          shippingAddress:
-            address.address,
+  shippingAddress: address.address,
 
-          shippingCity:
-            address.city,
+  shippingCity: address.city,
 
-          shippingProvince:
-            address.province,
+  shippingProvince:
+    address.province,
 
-          shippingPostalCode:
-            address.postalCode,
+  shippingPostalCode:
+    address.postalCode,
 
-          items: cart.map(
-            (item) => ({
-              productId: item.id,
-              quantity:
-                item.quantity,
-              price: item.price,
-            })
-          ),
-        };
+  items: cart.map((item) => ({
+    productId: item.id,
+    quantity: item.quantity,
+    price: item.price,
+  })),
+};
 
         const res = await fetch(
           '/api/orders',
@@ -361,7 +356,7 @@ export default function CheckoutPage() {
                   async () => {
                     try {
                       await fetch(
-                        `/api/orders/${order.id}`,
+  `/api/orders/${order.orderNumber}`,
                         {
                           method:
                             'PATCH',
@@ -391,13 +386,13 @@ export default function CheckoutPage() {
                     await refreshOrders();
 
                     router.push(
-                      `/customer/orders/${order.id}`
-                    );
+  `/customer/orders/${order.orderNumber}`
+);
                   },
 
                 onPending: () => {
                   router.push(
-                    `/customer/orders/${order.id}`
+                    `/customer/orders/${order.orderNumber}`
                   );
                 },
 
@@ -407,13 +402,13 @@ export default function CheckoutPage() {
                   );
 
                   router.push(
-                    `/customer/orders/${order.id}`
+                    `/customer/orders/${order.orderNumber}`
                   );
                 },
 
                 onClose: () => {
                   router.push(
-                    `/customer/orders/${order.id}`
+                    `/customer/orders/${order.orderNumber}`
                   );
                 },
               }
@@ -421,7 +416,7 @@ export default function CheckoutPage() {
           }
         } else {
           router.push(
-            `/customer/orders/${order.id}`
+            `/customer/orders/${order.orderNumber}`
           );
         }
       } catch (error) {

@@ -1,23 +1,23 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+// 1. IMPORT BCRYPTJS
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
     const { email, password } = body;
 
-const user = await prisma.user.findUnique({
-  where: {
-    email,
-  },
+    const user = await prisma.user.findUnique({
+      where: {
+        email: email.toLowerCase(), // Pastikan di-lowercase agar konsisten dengan register
+      },
+      include: {
+        addresses: true,
+      },
+    });
 
-  include: {
-    addresses: true,
-  },
-});
-
-    // cek user
+    // Cek user
     if (!user) {
       return NextResponse.json(
         {
@@ -28,10 +28,21 @@ const user = await prisma.user.findUnique({
       );
     }
 
-    // cek password
-    // sementara plain text dulu
-    // nanti bisa pakai bcrypt
-    if (user.password !== password) {
+    // 2. PERBAIKAN DI SINI: Gunakan bcrypt.compare untuk mengecek password terenkripsi
+    // Jika user login via Google (password null di DB), pastikan ditangani aman
+    if (!user.password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Akun ini terdaftar menggunakan Google. Silakan login via Google.',
+        },
+        { status: 401 }
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
       return NextResponse.json(
         {
           success: false,
@@ -41,29 +52,28 @@ const user = await prisma.user.findUnique({
       );
     }
 
-    // jangan kirim password ke frontend
+    // Jangan kirim password ke frontend
     const safeUser = {
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  role: user.role,
-  phone: user.phone,
-
-  addresses: user.addresses,
-
-  createdAt:
-    user.createdAt.toISOString(),
-};
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      addresses: user.addresses,
+      createdAt: user.createdAt.toISOString(),
+    };
 
     return NextResponse.json({
       success: true,
       user: safeUser,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('❌ Error API Login:', error);
     return NextResponse.json(
       {
         success: false,
         message: 'Server error',
+        details: error.message
       },
       { status: 500 }
     );

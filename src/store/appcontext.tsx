@@ -163,6 +163,7 @@ export interface AppContextType {
   toggleWishlist: (id: string) => void;
 
   login: (user: User) => void;
+  loginGoogle: () => void; // 🔥 FIX 1: Daftarkan tipe data fungsi di tipe context
   logout: () => void;
 
   uploadPaymentProof: (orderId: string, proofUrl: string, paymentMethod: string) => Promise<void>;
@@ -170,7 +171,6 @@ export interface AppContextType {
   updateOrderPaymentStatus: (orderId: string, status: Order['paymentStatus']) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
 
-  // Fix: Pastikan properti ini terisi di provider value
   notifications: NotificationItem[];
   unreadCount: number;
   markNotificationRead: (id: string) => void;
@@ -195,7 +195,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // ➕ TAMBAHAN BARU: State Notifikasi yang tertinggal
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
       id: 'notif-1',
@@ -272,7 +271,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
-      // Menjalankan fetch secara paralel agar performa loading cepat
       await Promise.all([
         refreshCategories(),
         refreshOrders(),
@@ -472,6 +470,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
   };
 
+  // 🔥 FIX 2: Sediakan implementasi simulasi fungsi loginGoogle agar tidak kosong
+  const loginGoogle = () => {
+    const mockGoogleUser: User = {
+      id: 'usr-google-mock',
+      name: 'User Google Toko',
+      email: 'pangkalan.susu@gmail.com',
+      role: 'CUSTOMER',
+      isActive: true,
+    };
+    login(mockGoogleUser);
+  };
+
   const logout = () => {
     setCurrentUser(null);
     setIsLoggedIn(false);
@@ -532,7 +542,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  // ➕ TAMBAHAN BARU: Handler Fungsi Notifikasi
   const markNotificationRead = (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
@@ -547,7 +556,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return notifications.filter((n) => !n.isRead).length;
   }, [notifications]);
 
-  // ================= DERIVED STATE =================
   const categoriesWithCount = useMemo(() => {
     return categories.map((cat) => ({
       ...cat,
@@ -555,7 +563,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }));
   }, [categories, products]);
 
-  // ================= RETURN PROVIDER =================
   return (
     <AppContext.Provider
       value={{
@@ -589,12 +596,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         updateCartQty,
         toggleWishlist,
         login,
+        loginGoogle, // 🔥 FIX 3: Masukkan fungsi loginGoogle ke dalam Provider Value
         logout,
         uploadPaymentProof,
         cancelOrder,
         updateOrderPaymentStatus,
         updateOrderStatus,
-        // Inject Properti Notifikasi ke Provider
         notifications,
         unreadCount,
         markNotificationRead,

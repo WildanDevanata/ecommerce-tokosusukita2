@@ -37,9 +37,9 @@ export interface Order {
   userName: string; 
   totalAmount: number;
   shippingCost: number;
-  paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED';
+  paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED' | 'EXPIRED'; // ◄ SINKRONISASI: Tambah EXPIRED sesuai DB
   paymentMethod?: string;
-  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REVIEWED'; // ◄ SINKRONISASI: Tambah REVIEWED
   createdAt: string;
   updatedAt: string;
   paymentProofUrl?: string;
@@ -79,22 +79,23 @@ export interface Product {
   name: string;
   slug: string;
   price: number;
-  categoryId: string;
-  image?: string;
-  bgColor: string;
+  categoryId: string; // ◄ TETAP WAJIB: Sesuai aturan DB Prisma
+  image?: string | null;
+  bgColor?: string | null;
   rating: number;
   stock: number;
   isActive?: boolean;
   originalPrice?: number | null;
-  emoji?: string;
+  emoji?: string | null;
   weight?: number;
   categoryName?: string;
   isNew?: boolean;
   isBestSeller?: boolean;
+  reviewCount: number; // ◄ SINKRONISASI: Ditambahkan agar match dengan ProductCard
   category?: {
     id: string;
     name: string;
-  };
+  } | null;
 }
 
 export interface CartItem {
@@ -102,8 +103,7 @@ export interface CartItem {
   userId: string;
   productId: string;
   quantity: number;
-  product?: Product; // Menampung struktur relation data include dari Prisma
-  // Properti flat cadangan untuk kecocokan tipe lama
+  product?: Product; 
   name?: string;
   price?: number;
   image?: string;
@@ -153,7 +153,7 @@ export interface AppContextType {
   refreshCategories: () => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
-  refreshCart: (userId: string) => Promise<void>; // 🔥 Sinkronisasi Cart dari database
+  refreshCart: (userId: string) => Promise<void>; 
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
@@ -278,7 +278,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🔥 Fungsi baru untuk mengambil data cart real dari Database Prisma
   const refreshCart = async (userId: string) => {
     try {
       const res = await fetch(`/api/cart?userId=${userId}`);
@@ -311,13 +310,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           const parsedUser = JSON.parse(savedUser);
           setCurrentUser(parsedUser);
           setIsLoggedIn(true);
-          // 🚀 JIKA USER LOGGED IN: Ambil data keranjang dari database Prisma, bukan localStorage
           await refreshCart(parsedUser.id || 'user2');
         } catch (e) {
           console.error(e);
         }
       } else {
-        // Fallback jika tidak ada user login, ambil data offline temporary
         const savedCart = localStorage.getItem('cart');
         if (savedCart) {
           try { setCart(JSON.parse(savedCart)); } catch (e) {}
@@ -338,7 +335,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initData();
   }, []);
 
-  // ================= SAVE TO LOCALSTORAGE (Cadangan Offline) =================
+  // ================= SAVE TO LOCALSTORAGE (Offline Backup) =================
   useEffect(() => {
     if (isInitialized && !currentUser) {
       localStorage.setItem('cart', JSON.stringify(cart));
@@ -463,7 +460,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🚀 UPDATE: Tambah item ke database Prisma, lalu refresh state keranjang
   const addToCart = async (item: Product) => {
     const activeUserId = currentUser?.id || 'user2';
 
@@ -475,24 +471,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (res.ok) {
-        await refreshCart(activeUserId); // Tarik ulang data ter-update dari DB
+        await refreshCart(activeUserId); 
       }
     } catch (error) {
       console.error("Gagal menambahkan ke database cart:", error);
     }
   };
 
-  // 🚀 UPDATE: Hapus item dari database Prisma, lalu refresh state keranjang
   const removeFromCart = async (cartItemId: string) => {
-    const activeUserId = currentUser?.id || 'user2';
-
     try {
       const res = await fetch(`/api/cart?id=${cartItemId}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        // Cara cepat tanpa fetch ulang: langsung filter state lokal agar UI instan merespon
         setCart((prev) => prev.filter((item) => item.id !== cartItemId));
       }
     } catch (error) {
@@ -500,10 +492,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🚀 UPDATE: Update kuantitas item langsung ke database Prisma
   const updateCartQty = async (cartItemId: string, qty: number) => {
-    const activeUserId = currentUser?.id || 'user2';
-
     if (qty <= 0) {
       await removeFromCart(cartItemId);
       return;
@@ -517,7 +506,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (res.ok) {
-        // Optimistic UI update agar tidak ada delay kedipan loading screen
         setCart((prev) =>
           prev.map((item) => (item.id === cartItemId ? { ...item, quantity: qty } : item))
         );
@@ -532,12 +520,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoggedIn(true);
     localStorage.setItem('user', JSON.stringify(user));
     document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
-    refreshCart(user.id); // Langsung load cart miliknya begitu berhasil login
+    refreshCart(user.id); 
   };
 
   const loginGoogle = () => {
     const mockGoogleUser: User = {
-      id: 'user2', // Kita samakan ID-nya dengan data di screenshot database kamu
+      id: 'user2', 
       name: 'User Google Toko',
       email: 'pangkalan.susu@gmail.com',
       role: 'CUSTOMER',
@@ -645,7 +633,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshCategories,
         refreshOrders,
         refreshUsers,
-        refreshCart, // Diekspos agar bisa dipanggil dari luar jika diperlukan
+        refreshCart, 
         setProducts,
         setCategories,
         setUsers,
@@ -678,7 +666,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// ================= HOOK =================
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {

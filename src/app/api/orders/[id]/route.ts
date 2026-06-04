@@ -87,64 +87,34 @@ const formatOrderResponse = (order: any) => ({
 // ================= GET =================
 export async function GET(
   req: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
-  }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
 
-    // ✅ CARI BERDASARKAN orderNumber
-    const order =
-      await prisma.order.findUnique({
-        where: {
-          orderNumber: id,
-        },
-
-        include: {
-          user: true,
-
-          items: {
-            include: {
-              product: true,
-              review: true,
-            },
-          },
-        },
-      });
+    // Coba cari berdasarkan ID (UUID) terlebih dahulu, jika tidak ada, cari berdasarkan orderNumber
+    const order = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { orderNumber: id }
+        ]
+      },
+      include: {
+        user: true,
+        items: { include: { product: true, review: true } },
+      },
+    });
 
     if (!order) {
-      return NextResponse.json(
-        {
-          error:
-            "Order tidak ditemukan",
-        },
-        {
-          status: 404,
-        }
-      );
+      return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
     }
 
-    return NextResponse.json(
-      formatOrderResponse(order)
-    );
+    return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        error:
-          "Gagal mengambil detail order",
-      },
-      {
-        status: 500,
-      }
-    );
+    return NextResponse.json({ error: "Gagal mengambil detail order" }, { status: 500 });
   }
 }
-
 // ================= PATCH =================
 export async function PATCH(
   req: Request,

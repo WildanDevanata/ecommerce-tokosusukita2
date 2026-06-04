@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // Anda bisa ganti ke "mysql" atau "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -32,6 +32,7 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+  EXPIRED
 }
 
 enum PaymentMethod {
@@ -72,7 +73,7 @@ model User {
   payments      Payment[]
   notifications Notification[]
   cartItems     CartItem[]
-  reviews       Review[]       // ➕ Tambahan: Relasi timbal balik ke model Review
+  reviews       Review[]
 }
 
 model Address {
@@ -87,6 +88,8 @@ model Address {
   province      String
   postalCode    String
   isDefault     Boolean @default(false)
+
+  @@index([userId])
 }
 
 model Category {
@@ -106,8 +109,8 @@ model Product {
   slug          String      @unique
   categoryId    String
   category      Category    @relation(fields: [categoryId], references: [id])
-  price         Float
-  originalPrice Float?
+  price         Int         // ◄ Dioptimalkan ke Int untuk Rupiah (Mencegah RpNaN)
+  originalPrice Int?        // ◄ Dioptimalkan ke Int
   stock         Int         @default(0)
   rating        Float       @default(0)
   reviewCount   Int         @default(0)
@@ -126,87 +129,98 @@ model Product {
   
   orderItems    OrderItem[]
   cartItems     CartItem[]
-  reviews       Review[]    // ➕ Tambahan: Relasi timbal balik ke model Review
+  reviews       Review[]
 }
 
 model Order {
-  id                String        @id @default(cuid())
-  orderNumber       String        @unique
-  userId            String
-  user              User          @relation(fields: [userId], references: [id])
-  totalAmount       Float
-  shippingCost      Float         @default(0)
-  status            OrderStatus   @default(PENDING)
-  paymentStatus     PaymentStatus @default(PENDING)
-  paymentMethod     PaymentMethod?
-  snapToken         String?
-  trackingNumber    String?
-  courier           String?
-  shippingService   String?
-  shippingEtd       String?
-  notes             String?
-  paymentProofUrl   String?
+  id                 String        @id @default(cuid())
+  orderNumber        String        @unique
+  userId             String
+  user               User          @relation(fields: [userId], references: [id])
+  totalAmount        Int           // ◄ Dioptimalkan ke Int
+  shippingCost       Int           @default(0) // ◄ Dioptimalkan ke Int
+  status             OrderStatus   @default(PENDING)
+  paymentStatus      PaymentStatus @default(PENDING)
   
-  // Snapshot alamat pengiriman agar tidak berubah jika user mengubah alamat profilnya
-  shippingRecipient String
-  shippingPhone     String
-  shippingAddress   String
-  shippingCity      String
-  shippingProvince  String
+  trackingNumber     String?
+  courier            String?
+  shippingService    String?
+  shippingEtd        String?
+  notes              String?
+  
+  shippingRecipient  String
+  shippingPhone      String
+  shippingAddress    String
+  shippingCity       String
+  shippingProvince   String
   shippingPostalCode String
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  items             OrderItem[]
-  payments          Payment[]
+  items              OrderItem[]
+  payments           Payment[]
+
+  @@index([userId])
 }
 
 model Review {
-  id          String   @id @default(cuid())
-  rating      Int      // 1 sampai 5
-  comment     String?  @db.Text
-  image       String?  // URL foto ulasan (opsional)
+  id          String    @id @default(cuid())
+  rating      Int       // 1 sampai 5
+  comment     String?   @db.Text
+  image       String?   
   
-  // Relasi ke User & Product
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   
-  // Menghubungkan ke OrderItem spesifik agar tidak bisa review berkali-kali
-  orderItemId String   @unique
+  orderItemId String    @unique
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([productId])
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product @relation(fields: [productId], references: [id])
-  quantity    Int
-  price       Float   // Harga saat dibeli
-  review      Review? // Relasi 1-to-1 ke Review
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Int     // ◄ Dioptimalkan ke Int (Harga saat dibeli)
+  review    Review?
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model Payment {
   id            String        @id @default(cuid())
   orderId       String
-  order         Order         @relation(fields: [orderId], references: [id])
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userId        String
   user          User          @relation(fields: [userId], references: [id])
-  method        PaymentMethod
-  status        PaymentStatus
-  amount        Float
-  paymentProof  String?
-  bankName      String?
-  transactionId String?
+  
+  method        PaymentMethod 
+  status        PaymentStatus @default(PENDING)
+  amount        Int           // ◄ Dioptimalkan ke Int
+  
+  snapToken     String?       
+  transactionId String?       
+  paymentProof  String?       
+  bankName      String?       
+  
   paidAt        DateTime?
   createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
 }
 
 model BankAccount {
@@ -231,6 +245,8 @@ model Notification {
   isRead    Boolean          @default(false)
   link      String?
   createdAt DateTime         @default(now())
+
+  @@index([userId])
 }
 
 model CartItem {
@@ -240,4 +256,7 @@ model CartItem {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity  Int     @default(1)
+
+  @@unique([userId, productId])
+  @@index([userId]) // ◄ Optimal untuk render item keranjang dengan cepat
 }

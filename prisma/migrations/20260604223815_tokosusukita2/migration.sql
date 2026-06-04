@@ -5,7 +5,7 @@ CREATE TYPE "Role" AS ENUM ('ADMIN', 'CUSTOMER');
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'REVIEWED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'WAITING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED');
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'WAITING_VERIFICATION', 'PAID', 'FAILED', 'REFUNDED', 'EXPIRED');
 
 -- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('TRANSFER', 'MIDTRANS', 'COD', 'EWALLET');
@@ -67,8 +67,8 @@ CREATE TABLE "Product" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "categoryId" TEXT NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
-    "originalPrice" DOUBLE PRECISION,
+    "price" INTEGER NOT NULL,
+    "originalPrice" INTEGER,
     "stock" INTEGER NOT NULL DEFAULT 0,
     "rating" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "reviewCount" INTEGER NOT NULL DEFAULT 0,
@@ -93,18 +93,15 @@ CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "orderNumber" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "totalAmount" DOUBLE PRECISION NOT NULL,
-    "shippingCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalAmount" INTEGER NOT NULL,
+    "shippingCost" INTEGER NOT NULL DEFAULT 0,
     "status" "OrderStatus" NOT NULL DEFAULT 'PENDING',
     "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
-    "paymentMethod" "PaymentMethod",
-    "snapToken" TEXT,
     "trackingNumber" TEXT,
     "courier" TEXT,
     "shippingService" TEXT,
     "shippingEtd" TEXT,
     "notes" TEXT,
-    "paymentProofUrl" TEXT,
     "shippingRecipient" TEXT NOT NULL,
     "shippingPhone" TEXT NOT NULL,
     "shippingAddress" TEXT NOT NULL,
@@ -138,7 +135,7 @@ CREATE TABLE "OrderItem" (
     "orderId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
+    "price" INTEGER NOT NULL,
 
     CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
 );
@@ -149,13 +146,15 @@ CREATE TABLE "Payment" (
     "orderId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "method" "PaymentMethod" NOT NULL,
-    "status" "PaymentStatus" NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+    "amount" INTEGER NOT NULL,
+    "snapToken" TEXT,
+    "transactionId" TEXT,
     "paymentProof" TEXT,
     "bankName" TEXT,
-    "transactionId" TEXT,
     "paidAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
 );
@@ -203,6 +202,9 @@ CREATE TABLE "CartItem" (
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE INDEX "Address_userId_idx" ON "Address"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Category_slug_key" ON "Category"("slug");
 
 -- CreateIndex
@@ -212,7 +214,37 @@ CREATE UNIQUE INDEX "Product_slug_key" ON "Product"("slug");
 CREATE UNIQUE INDEX "Order_orderNumber_key" ON "Order"("orderNumber");
 
 -- CreateIndex
+CREATE INDEX "Order_userId_idx" ON "Order"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Review_orderItemId_key" ON "Review"("orderItemId");
+
+-- CreateIndex
+CREATE INDEX "Review_userId_idx" ON "Review"("userId");
+
+-- CreateIndex
+CREATE INDEX "Review_productId_idx" ON "Review"("productId");
+
+-- CreateIndex
+CREATE INDEX "OrderItem_orderId_idx" ON "OrderItem"("orderId");
+
+-- CreateIndex
+CREATE INDEX "OrderItem_productId_idx" ON "OrderItem"("productId");
+
+-- CreateIndex
+CREATE INDEX "Payment_orderId_idx" ON "Payment"("orderId");
+
+-- CreateIndex
+CREATE INDEX "Payment_userId_idx" ON "Payment"("userId");
+
+-- CreateIndex
+CREATE INDEX "Notification_userId_idx" ON "Notification"("userId");
+
+-- CreateIndex
+CREATE INDEX "CartItem_userId_idx" ON "CartItem"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CartItem_userId_productId_key" ON "CartItem"("userId", "productId");
 
 -- AddForeignKey
 ALTER TABLE "Address" ADD CONSTRAINT "Address_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -239,7 +271,7 @@ ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("or
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

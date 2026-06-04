@@ -601,7 +601,7 @@ const confirmDeliveredOrder = async () => {
 
                         {order.status === 'SHIPPED' && order.trackingNumber && (
                           <span className="text-sm text-purple-600 bg-purple-50 px-4 py-2 rounded-2xl font-medium">
-                            📦 {order.trackingNumber}
+                            📦No.Resi = {order.trackingNumber}
                           </span>
                         )}
                         

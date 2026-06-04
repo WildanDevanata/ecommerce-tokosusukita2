@@ -1,5 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const bcrypt = require('bcryptjs');
+
 
 async function main() {
   console.log('Sedang membersihkan database...');
@@ -16,6 +18,17 @@ async function main() {
   await prisma.user.deleteMany();
 
   console.log('Memulai proses seeding...');
+
+   // HASH PASSWORD
+  const adminPassword = await bcrypt.hash(
+    'admin123',
+    10
+  );
+
+  const customerPassword = await bcrypt.hash(
+    'customer123',
+    10
+  );
 
   // 1. Seed Categories
   const categoriesData = [
@@ -188,40 +201,40 @@ async function main() {
   // 3. Seed Users & Addresses
 const usersData = [
     {
-      id: 'user1', name: 'Admin Toko', email: 'admin@tokosusukita.com', password: 'admin123',
+      id: 'user1', name: 'Admin Toko', email: 'admin@tokosusukita.com', password: adminPassword,
       phone: '081234567890', role: 'ADMIN', createdAt: new Date('2024-01-01'), isActive: true,
       address: { id: 'addr1', label: 'Kantor', recipientName: 'Admin Toko', phone: '081234567890', address: 'Jl. Raya Susu Kita No. 1', city: 'Jakarta Selatan', province: 'DKI Jakarta', postalCode: '12345', isDefault: true },
     },
     {
-      id: 'user2', name: 'Budi Santoso', email: 'budi@email.com', password: 'customer123',
+      id: 'user2', name: 'Budi Santoso', email: 'budi@email.com', password: customerPassword,
       phone: '082345678901', role: 'CUSTOMER', createdAt: new Date('2024-02-15'), isActive: true,
       address: { id: 'addr2', label: 'Rumah', recipientName: 'Budi Santoso', phone: '082345678901', address: 'Jl. Melati No. 25 RT 03 RW 04', city: 'Jakarta Timur', province: 'DKI Jakarta', postalCode: '13210', isDefault: true },
     },
     {
-      id: 'user3', name: 'Siti Rahayu', email: 'siti@email.com', password: 'customer123',
+      id: 'user3', name: 'Siti Rahayu', email: 'siti@email.com', password: customerPassword,
       phone: '083456789012', role: 'CUSTOMER', createdAt: new Date('2024-03-20'), isActive: true,
       address: { id: 'addr3', label: 'Rumah', recipientName: 'Siti Rahayu', phone: '083456789012', address: 'Jl. Mawar Indah No. 12', city: 'Depok', province: 'Jawa Barat', postalCode: '16415', isDefault: true },
     },
     {
-      id: 'user4', name: 'Ahmad Fauzi', email: 'ahmad@email.com', password: 'customer123',
+      id: 'user4', name: 'Ahmad Fauzi', email: 'ahmad@email.com', password: customerPassword,
       phone: '084567890123', role: 'CUSTOMER', createdAt: new Date('2024-04-10'), isActive: true,
       address: { id: 'addr4', label: 'Rumah', recipientName: 'Ahmad Fauzi', phone: '084567890123', address: 'Jl. Kenanga No. 7 Blok C', city: 'Bekasi', province: 'Jawa Barat', postalCode: '17111', isDefault: true },
     },
     {
-      id: 'user5', name: 'Dewi Lestari', email: 'dewi@email.com', password: 'customer123',
+      id: 'user5', name: 'Dewi Lestari', email: 'dewi@email.com', password: customerPassword,
       phone: '085678901234', role: 'CUSTOMER', createdAt: new Date('2024-05-05'), isActive: true,
       address: { id: 'addr5', label: 'Rumah', recipientName: 'Dewi Lestari', phone: '085678901234', address: 'Perumahan Griya Indah B-12', city: 'Tangerang', province: 'Banten', postalCode: '15117', isDefault: true },
     },
     {
-      id: 'user6', name: 'Rini Wulandari', email: 'rini@email.com', password: 'customer123',
+      id: 'user6', name: 'Rini Wulandari', email: 'rini@email.com', password: customerPassword,
       phone: '086789012345', role: 'CUSTOMER', createdAt: new Date('2024-05-18'), isActive: false,
     },
     {
-      id: 'user7', name: 'Eko Prasetyo', email: 'eko@email.com', password: 'customer123',
+      id: 'user7', name: 'Eko Prasetyo', email: 'eko@email.com', password: customerPassword,
       phone: '087890123456', role: 'CUSTOMER', createdAt: new Date('2024-06-01'), isActive: true,
     },
     {
-      id: 'user8', name: 'Nurul Hidayah', email: 'nurul@email.com', password: 'customer123',
+      id: 'user8', name: 'Nurul Hidayah', email: 'nurul@email.com', password: customerPassword,
       phone: '088901234567', role: 'CUSTOMER', createdAt: new Date('2024-06-15'), isActive: true,
     },
   ];

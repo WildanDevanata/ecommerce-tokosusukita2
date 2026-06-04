@@ -97,8 +97,18 @@ export interface Product {
   };
 }
 
-export interface CartItem extends Product {
+export interface CartItem {
+  id: string;
+  userId: string;
+  productId: string;
   quantity: number;
+  product?: Product; // Menampung struktur relation data include dari Prisma
+  // Properti flat cadangan untuk kecocokan tipe lama
+  name?: string;
+  price?: number;
+  image?: string;
+  stock?: number;
+  category?: any;
 }
 
 export interface User {
@@ -143,6 +153,7 @@ export interface AppContextType {
   refreshCategories: () => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
+  refreshCart: (userId: string) => Promise<void>; // 🔥 Sinkronisasi Cart dari database
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
@@ -157,13 +168,13 @@ export interface AppContextType {
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
 
-  addToCart: (item: Product) => void;
-  removeFromCart: (id: string) => void;
-  updateCartQty: (id: string, qty: number) => void;
+  addToCart: (item: Product) => Promise<void>;
+  removeFromCart: (id: string) => Promise<void>;
+  updateCartQty: (id: string, qty: number) => Promise<void>;
   toggleWishlist: (id: string) => void;
 
   login: (user: User) => void;
-  loginGoogle: () => void; // 🔥 FIX 1: Daftarkan tipe data fungsi di tipe context
+  loginGoogle: () => void; 
   logout: () => void;
 
   uploadPaymentProof: (orderId: string, proofUrl: string, paymentMethod: string) => Promise<void>;
@@ -267,6 +278,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // 🔥 Fungsi baru untuk mengambil data cart real dari Database Prisma
+  const refreshCart = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/cart?userId=${userId}`);
+      const result = await res.json();
+      if (result.success) {
+        setCart(result.data);
+      }
+    } catch (error) {
+      console.error("Gagal sinkronisasi data cart database:", error);
+    }
+  };
+
   // ================= INITIAL LOAD =================
   useEffect(() => {
     const initData = async () => {
@@ -280,24 +304,26 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       ]);
 
       const savedUser = localStorage.getItem('user');
-      const savedCart = localStorage.getItem('cart');
       const savedWishlist = localStorage.getItem('wishlist');
 
       if (savedUser) {
         try {
-          setCurrentUser(JSON.parse(savedUser));
+          const parsedUser = JSON.parse(savedUser);
+          setCurrentUser(parsedUser);
           setIsLoggedIn(true);
+          // 🚀 JIKA USER LOGGED IN: Ambil data keranjang dari database Prisma, bukan localStorage
+          await refreshCart(parsedUser.id || 'user2');
         } catch (e) {
           console.error(e);
         }
-      }
-      if (savedCart) {
-        try {
-          setCart(JSON.parse(savedCart));
-        } catch (e) {
-          console.error(e);
+      } else {
+        // Fallback jika tidak ada user login, ambil data offline temporary
+        const savedCart = localStorage.getItem('cart');
+        if (savedCart) {
+          try { setCart(JSON.parse(savedCart)); } catch (e) {}
         }
       }
+
       if (savedWishlist) {
         try {
           setWishlist(JSON.parse(savedWishlist));
@@ -312,12 +338,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initData();
   }, []);
 
-  // ================= SAVE TO LOCALSTORAGE =================
+  // ================= SAVE TO LOCALSTORAGE (Cadangan Offline) =================
   useEffect(() => {
-    if (isInitialized) {
+    if (isInitialized && !currentUser) {
       localStorage.setItem('cart', JSON.stringify(cart));
     }
-  }, [cart, isInitialized]);
+  }, [cart, isInitialized, currentUser]);
 
   useEffect(() => {
     if (isInitialized) {
@@ -423,7 +449,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('Gagal hapus alamat');
+      if (!res.ok) throw new Error('Gagal delete alamat');
 
       const updatedUser = {
         ...currentUser,
@@ -437,30 +463,68 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const addToCart = (item: Product) => {
-    setCart((prev) => {
-      const exist = prev.find((i) => i.id === item.id);
-      if (exist) {
-        return prev.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
+  // 🚀 UPDATE: Tambah item ke database Prisma, lalu refresh state keranjang
+  const addToCart = async (item: Product) => {
+    const activeUserId = currentUser?.id || 'user2';
+
+    try {
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: activeUserId, productId: item.id }),
+      });
+
+      if (res.ok) {
+        await refreshCart(activeUserId); // Tarik ulang data ter-update dari DB
       }
-      return [...prev, { ...item, quantity: 1 }];
-    });
+    } catch (error) {
+      console.error("Gagal menambahkan ke database cart:", error);
+    }
   };
 
-  const removeFromCart = (id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
+  // 🚀 UPDATE: Hapus item dari database Prisma, lalu refresh state keranjang
+  const removeFromCart = async (cartItemId: string) => {
+    const activeUserId = currentUser?.id || 'user2';
+
+    try {
+      const res = await fetch(`/api/cart?id=${cartItemId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        // Cara cepat tanpa fetch ulang: langsung filter state lokal agar UI instan merespon
+        setCart((prev) => prev.filter((item) => item.id !== cartItemId));
+      }
+    } catch (error) {
+      console.error("Gagal menghapus item dari database:", error);
+    }
   };
 
-  const updateCartQty = (id: string, qty: number) => {
+  // 🚀 UPDATE: Update kuantitas item langsung ke database Prisma
+  const updateCartQty = async (cartItemId: string, qty: number) => {
+    const activeUserId = currentUser?.id || 'user2';
+
     if (qty <= 0) {
-      removeFromCart(id);
+      await removeFromCart(cartItemId);
       return;
     }
-    setCart((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity: qty } : item))
-    );
+
+    try {
+      const res = await fetch('/api/cart', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cartItemId, quantity: qty }),
+      });
+
+      if (res.ok) {
+        // Optimistic UI update agar tidak ada delay kedipan loading screen
+        setCart((prev) =>
+          prev.map((item) => (item.id === cartItemId ? { ...item, quantity: qty } : item))
+        );
+      }
+    } catch (error) {
+      console.error("Gagal mengubah kuantitas di database:", error);
+    }
   };
 
   const login = (user: User) => {
@@ -468,12 +532,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoggedIn(true);
     localStorage.setItem('user', JSON.stringify(user));
     document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
+    refreshCart(user.id); // Langsung load cart miliknya begitu berhasil login
   };
 
-  // 🔥 FIX 2: Sediakan implementasi simulasi fungsi loginGoogle agar tidak kosong
   const loginGoogle = () => {
     const mockGoogleUser: User = {
-      id: 'usr-google-mock',
+      id: 'user2', // Kita samakan ID-nya dengan data di screenshot database kamu
       name: 'User Google Toko',
       email: 'pangkalan.susu@gmail.com',
       role: 'CUSTOMER',
@@ -581,6 +645,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshCategories,
         refreshOrders,
         refreshUsers,
+        refreshCart, // Diekspos agar bisa dipanggil dari luar jika diperlukan
         setProducts,
         setCategories,
         setUsers,
@@ -596,7 +661,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         updateCartQty,
         toggleWishlist,
         login,
-        loginGoogle, // 🔥 FIX 3: Masukkan fungsi loginGoogle ke dalam Provider Value
+        loginGoogle, 
         logout,
         uploadPaymentProof,
         cancelOrder,

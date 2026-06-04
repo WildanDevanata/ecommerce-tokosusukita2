@@ -9,14 +9,14 @@ import {
   Star,
   CheckCircle2,
 } from 'lucide-react';
-import { useApp } from '@/store/appcontext'; // Pastikan casing path sesuai dengan nama file kamu (misal: AppContext)
+import { useApp } from '@/store/appcontext';
 
 export default function ProductCard({
   product,
 }: {
   product: any;
 }) {
-  // 💡 Ambil wishlist global dan fungsi toggler-nya dari konteks
+  // Ambil state dan fungsi global dari Context
   const { addToCart, currentUser, wishlist, toggleWishlist } = useApp();
 
   const [showNotif, setShowNotif] = useState(false);
@@ -25,22 +25,49 @@ export default function ProductCard({
   const isCustomer = currentUser?.role === 'CUSTOMER';
 
   // 💝 Cek apakah ID produk ini ada di dalam array wishlist global
-  const isWishlisted = wishlist.includes(product.id);
+  const isWishlisted = wishlist?.includes(product.id) || false;
 
   // ================= HANDLERS =================
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault(); // Mencegah Link mengarahkan ke halaman detail
+  // 🔥 Fungsi Add to Cart yang sudah terintegrasi ke Prisma Database via API
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Mencegah Link mengarahkan ke halaman detail produk
 
-    // 🔒 Guard clause tambahan jika ada bypass manual
-    if (!isCustomer) return;
+    // Guard clause: pastikan hanya customer login yang bisa bertransaksi
+    if (!isCustomer || !currentUser?.id) return;
 
-    addToCart(product);
-    setShowNotif(true);
+    try {
+      // 🚀 Tembak API Route untuk menyimpan model CartItem ke database
+      const response = await fetch('/api/cart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,   // ID customer aktif dari context
+          productId: product.id,    // ID produk saat ini
+        }),
+      });
 
-    setTimeout(() => {
-      setShowNotif(false);
-    }, 2000);
+      if (!response.ok) {
+        throw new Error('Gagal menyimpan keranjang ke database');
+      }
+
+      // Sinkronisasi dengan state UI lokal di AppContext (jika ada)
+      if (addToCart) {
+        addToCart(product);
+      }
+
+      // Munculkan notifikasi balon hijau sukses
+      setShowNotif(true);
+      setTimeout(() => {
+        setShowNotif(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error handleAddToCart:', error);
+      alert('Gagal menambahkan produk ke keranjang. Silakan coba kembali.');
+    }
   };
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
@@ -49,7 +76,9 @@ export default function ProductCard({
     if (!isCustomer) return;
     
     // Panggil fungsi global untuk pasang/lepas status wishlist
-    toggleWishlist(product.id);
+    if (toggleWishlist) {
+      toggleWishlist(product.id);
+    }
   };
 
   // ================= DISCOUNT =================
@@ -130,8 +159,9 @@ export default function ProductCard({
           )}
         </div>
 
-        {/* WISHLIST (Hanya aktif/bisa diklik jika role customer) */}
+        {/* WISHLIST (Hanya aktif jika role customer) */}
         <button
+          type="button"
           disabled={!isCustomer}
           onClick={handleWishlistToggle}
           className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all disabled:opacity-0 disabled:pointer-events-none ${

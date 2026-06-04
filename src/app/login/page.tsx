@@ -124,12 +124,6 @@ export default function LoginPage() {
     }
   };
 
-  // ================= GOOGLE LOGIN HANDLER =================
-  const handleGoogleLogin = () => {
-    // Arahkan ke endpoint integrasi Google Auth Anda (misal NextAuth atau custom route)
-    window.location.href = '/api/auth/google';
-  };
-
   // ================= QUICK LOGIN =================
 
   const quickLogin = (
@@ -341,28 +335,6 @@ export default function LoginPage() {
                   'Masuk ke Akun'
                 )}
               </button>
-
-              {/* ─── PERUBAHAN BARU: GOOGLE SIGN-IN BUTTON ─── */}
-              <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-gray-200"></div>
-                <span className="flex-shrink mx-4 text-xs text-gray-400 font-medium bg-white px-2">atau</span>
-                <div className="flex-grow border-t border-gray-200"></div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 py-3.5 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 shadow-sm"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.11C18.436 2.014 15.618 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c6.478 0 10.793-4.537 10.793-10.986 0-.74-.08-1.305-.176-1.864H12.24z"
-                  />
-                </svg>
-                <span className="text-sm">Masuk dengan Google</span>
-              </button>
-              {/* ───────────────────────────────────────────── */}
 
             </form>
 

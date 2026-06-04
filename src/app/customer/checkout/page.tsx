@@ -226,10 +226,10 @@ export default function CheckoutPage() {
 
   // ================= CALCULATIONS =================
 
+  // PERBAIKAN: Mengambil harga dari item.product.price
   const cartTotal = cart.reduce(
     (total, item) =>
-      total +
-      item.price * item.quantity,
+      total + (item.product?.price || 0) * item.quantity,
     0
   );
 
@@ -263,52 +263,53 @@ export default function CheckoutPage() {
       try {
         setLoading(true);
 
-       const payload = {
-  userId: currentUser.id,
+        const payload = {
+          userId: currentUser.id,
 
-  totalAmount: total,
+          totalAmount: total,
 
-  shippingCost:
-    selectedShipping.cost,
+          shippingCost:
+            selectedShipping.cost,
 
-  paymentMethod,
+          paymentMethod,
 
-  courier:
-    selectedShipping.courier.toUpperCase(),
+          courier:
+            selectedShipping.courier.toUpperCase(),
 
-  shippingService:
-    selectedShipping.service,
+          shippingService:
+            selectedShipping.service,
 
-  shippingEtd:
-    selectedShipping.etd,
+          shippingEtd:
+            selectedShipping.etd,
 
-  notes,
+          notes,
 
-  paymentStatus: 'PENDING',
+          paymentStatus: 'PENDING',
 
-  status: 'PENDING',
+          status: 'PENDING',
 
-  shippingRecipient:
-    address.recipientName,
+          shippingRecipient:
+            address.recipientName,
 
-  shippingPhone: address.phone,
+          shippingPhone: address.phone,
 
-  shippingAddress: address.address,
+          shippingAddress: address.address,
 
-  shippingCity: address.city,
+          shippingCity: address.city,
 
-  shippingProvince:
-    address.province,
+          shippingProvince:
+            address.province,
 
-  shippingPostalCode:
-    address.postalCode,
+          shippingPostalCode:
+            address.postalCode,
 
-  items: cart.map((item) => ({
-    productId: item.id,
-    quantity: item.quantity,
-    price: item.price,
-  })),
-};
+          // PERBAIKAN: Memetakan productId asli dan harga dari objek product
+          items: cart.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.product?.price || 0,
+          })),
+        };
 
         const res = await fetch(
           '/api/orders',
@@ -356,7 +357,7 @@ export default function CheckoutPage() {
                   async () => {
                     try {
                       await fetch(
-  `/api/orders/${order.orderNumber}`,
+                        `/api/orders/${order.orderNumber}`,
                         {
                           method:
                             'PATCH',
@@ -386,8 +387,8 @@ export default function CheckoutPage() {
                     await refreshOrders();
 
                     router.push(
-  `/customer/orders/${order.orderNumber}`
-);
+                      `/customer/orders/${order.orderNumber}`
+                    );
                   },
 
                 onPending: () => {
@@ -705,26 +706,29 @@ export default function CheckoutPage() {
                         className="flex justify-between"
                       >
                         <div>
+                          {/* PERBAIKAN: Mengambil nama dari item.product */}
                           <p className="text-sm font-medium">
                             {
-                              item.name
+                              item.product?.name || 'Produk Tanpa Nama'
                             }
                           </p>
 
+                          {/* PERBAIKAN: Mengambil harga satuan dari item.product */}
                           <p className="text-xs text-gray-500">
                             {
                               item.quantity
                             }{' '}
                             x{' '}
                             {formatRupiah(
-                              item.price
+                              item.product?.price || 0
                             )}
                           </p>
                         </div>
 
+                        {/* PERBAIKAN: Menghitung total harga baris dari item.product */}
                         <p className="text-sm font-bold">
                           {formatRupiah(
-                            item.price *
+                            (item.product?.price || 0) *
                               item.quantity
                           )}
                         </p>

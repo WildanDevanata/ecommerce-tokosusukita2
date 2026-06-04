@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-// 1. IMPORT BCRYPTJS
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
@@ -8,16 +7,30 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { email, password } = body;
 
+    // Validasi input kosong
+    if (!email || !password) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email dan password wajib diisi',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Gunakan .trim() untuk menghapus spasi tidak sengaja di ujung email
+    const cleanEmail = email.trim().toLowerCase();
+
     const user = await prisma.user.findUnique({
       where: {
-        email: email.toLowerCase(), // Pastikan di-lowercase agar konsisten dengan register
+        email: cleanEmail,
       },
       include: {
         addresses: true,
       },
     });
 
-    // Cek user
+    // 1. Cek apakah user ada
     if (!user) {
       return NextResponse.json(
         {
@@ -28,8 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. PERBAIKAN DI SINI: Gunakan bcrypt.compare untuk mengecek password terenkripsi
-    // Jika user login via Google (password null di DB), pastikan ditangani aman
+    // 2. Cek jika user mendaftar lewat Google (password kosong di DB)
     if (!user.password) {
       return NextResponse.json(
         {
@@ -40,6 +52,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 3. Bandingkan password text biasa dengan hash di DB
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
@@ -52,7 +65,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Jangan kirim password ke frontend
+    // 4. Pisahkan password sebelum dikirim ke frontend
     const safeUser = {
       id: user.id,
       name: user.name,
@@ -65,15 +78,17 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      message: 'Login berhasil',
       user: safeUser,
     });
+
   } catch (error: any) {
     console.error('❌ Error API Login:', error);
     return NextResponse.json(
       {
         success: false,
-        message: 'Server error',
-        details: error.message
+        message: 'Terjadi kesalahan pada server',
+        details: error.message,
       },
       { status: 500 }
     );

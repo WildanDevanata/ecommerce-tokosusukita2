@@ -369,33 +369,44 @@ export default function OrderDetailPage() {
               )}
             </div>
               
-              {/* Section Bukti Pembayaran */}
-            {(order.status !== 'PENDING' && order.status !== 'CANCELLED') && order.paymentProofUrl && (
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <ImageIcon className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-gray-800">Bukti Pembayaran</h3>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-4 items-center bg-gray-50 p-4 rounded-xl">
-                  <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                    <Image
-                      src={order.paymentProofUrl}
-                      alt="Bukti Transfer"
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  </div>
-                  <div className="text-center sm:text-left">
-                    <p className="text-sm font-bold text-green-600">Pembayaran Terverifikasi</p>
-                    <p className="text-xs text-gray-500 mt-1">Bukti telah terkirim dan akan diverifikasi oleh admin.</p>
-                    <a href={order.paymentProofUrl} target="_blank" className="text-xs font-bold text-blue-600 hover:underline mt-2 inline-flex items-center gap-1">
-                      Lihat Foto <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
+             {/* Section Bukti Pembayaran */}
+{order.paymentProofUrl && (
+  <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+    <div className="flex items-center gap-2 mb-4">
+      <ImageIcon className="w-5 h-5 text-blue-600" />
+      <h3 className="font-semibold text-gray-800">Bukti Pembayaran</h3>
+    </div>
+    <div className="flex flex-col sm:flex-row gap-4 items-center bg-gray-50 p-4 rounded-xl">
+      <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white">
+        <Image
+          src={order.paymentProofUrl}
+          alt="Bukti Transfer"
+          fill
+          className="object-cover"
+          unoptimized
+        />
+      </div>
+      <div className="text-center sm:text-left">
+        <p className={`text-sm font-bold ${order.status !== 'PENDING' ? 'text-green-600' : 'text-amber-600'}`}>
+          {order.status !== 'PENDING' ? 'Pembayaran Terverifikasi' : 'Menunggu Verifikasi Admin'}
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          {order.status !== 'PENDING' 
+            ? 'Bukti telah diverifikasi oleh admin.' 
+            : 'Bukti telah terkirim dan sedang dicek oleh admin.'}
+        </p>
+        <a 
+          href={order.paymentProofUrl} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-xs font-bold text-blue-600 hover:underline mt-2 inline-flex items-center gap-1"
+        >
+          Lihat Foto Ukuran Penuh <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  </div>
+)}
 
             {/* Payment Instructions */}
             {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (

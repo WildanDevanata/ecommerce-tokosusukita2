@@ -42,9 +42,26 @@ export default function AdminPaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<EnrichedPayment | null>(null);
   const [isMutating, setIsMutating] = useState(false);
 
-  // Map data order dari context ke dalam bentuk data payment ter-enrich
+ // Map data order dari context ke dalam bentuk data payment ter-enrich
   const enrichedPayments: EnrichedPayment[] = orders.map(order => {
     const rawStatus = order.paymentStatus || 'PENDING';
+    let normalizedStatus = rawStatus.toUpperCase();
+
+    // 🔥 SOLUSI UTAMA: Cek paymentProofUrl dari interface Order AppContext, 
+    // jika kosong baru cek fallback ke struktur data payments relasi DB.
+    const actualPaymentProof = 
+      order.paymentProofUrl || 
+      (order as any).payments?.[0]?.paymentProof || 
+      (order as any).payments?.[0]?.paymentProofUrl || 
+      (order as any).paymentProof || 
+      null;
+
+    // 🔥 SINKRONISASI STATUS: Jika ada bukti transfer tetapi status masih PENDING,
+    // paksa ke WAITING_VERIFICATION agar tab, modal gambar, dan tombol aksi muncul serentak.
+    if (actualPaymentProof && (normalizedStatus === 'PENDING' || normalizedStatus === 'WAITING_VERIFICATION')) {
+      normalizedStatus = 'WAITING_VERIFICATION';
+    }
+
     return {
       id: `pay-${order.id}`,
       orderId: order.id,
@@ -52,13 +69,12 @@ export default function AdminPaymentsPage() {
       userName: order.userName || order.shippingRecipient || 'Guest',
       userEmail: (order as any).userEmail || (order as any).email || '-',
       method: (order.paymentMethod as any) || 'TRANSFER',
-      // Normalisasi string status ke UPPERCASE untuk menghindari bug kecocokan string filter
-      status: rawStatus.toUpperCase() as any,
+      status: normalizedStatus as any,
       amount: order.totalAmount,
-      paymentProof: order.paymentProofUrl,
+      paymentProof: actualPaymentProof, // 👈 Sekarang dijamin mendapatkan string URL Cloudinary
       createdAt: typeof order.createdAt === 'string' ? order.createdAt : new Date(order.createdAt).toISOString(),
     };
-  });
+  });;
 
   const filtered = enrichedPayments.filter(p => {
     const matchTab = activeTab === 'ALL' || p.status === activeTab;

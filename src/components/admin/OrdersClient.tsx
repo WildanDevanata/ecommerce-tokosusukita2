@@ -41,14 +41,26 @@ export default function OrdersClient({
 }) {
   const router = useRouter();
 
-  // 🔥 Logika Baru: Jika ada item yang sudah diulas, paksa status di client-side menjadi REVIEWED
-  const sanitizedOrders = initialOrders.map((order) => {
-    const hasReview = order.items?.some((item: any) => item.review);
-    if (hasReview && order.status !== 'REVIEWED') {
+  // 🛠️ Helper Fungsi: Validasi apakah data review benar-benar berisi ulasan valid
+  const validateAndFormatStatus = (order: any): any => {
+    if (!order) return order;
+
+    const hasValidReview = order.items?.some((item: any) => {
+      if (!item.review) return false;
+      // Jika review bertipe Array, pastikan tidak kosong
+      if (Array.isArray(item.review)) return item.review.length > 0;
+      // Jika bertipe Object, pastikan memiliki properti id atau key bernilai
+      return !!item.review.id || Object.keys(item.review).length > 0;
+    });
+
+    if (hasValidReview) {
       return { ...order, status: 'REVIEWED' as OrderStatus };
     }
     return order;
-  });
+  };
+
+  // Mempersiapkan data awal yang sudah disanitasi
+  const sanitizedOrders = (initialOrders || []).map((order) => validateAndFormatStatus(order));
 
   const [orders, setOrders] = useState(sanitizedOrders);
   const [search, setSearch] = useState('');
@@ -96,22 +108,15 @@ export default function OrdersClient({
       
       const fullOrderData = await res.json();
       
-      // 🔥 Logika Baru: Pastikan status di dalam modal ikut berubah jika terdeteksi ulasan
-      const hasReview = fullOrderData.items?.some((item: any) => item.review);
-      if (hasReview) {
-        fullOrderData.status = 'REVIEWED';
-      }
+      // Sanitasi data detail dari API sebelum masuk state modal
+      const formattedData = validateAndFormatStatus(fullOrderData);
       
-      setSelectedOrder(fullOrderData);
-      setTrackingInput(fullOrderData.trackingNumber || '');
-      setCourierInput(fullOrderData.courier || 'JNE');
+      setSelectedOrder(formattedData);
+      setTrackingInput(formattedData.trackingNumber || '');
+      setCourierInput(formattedData.courier || 'JNE');
     } catch (error) {
       console.error(error);
-      const fallbackOrder = { ...order };
-      const hasReview = fallbackOrder.items?.some((item: any) => item.review);
-      if (hasReview) {
-        fallbackOrder.status = 'REVIEWED';
-      }
+      const fallbackOrder = validateAndFormatStatus({ ...order });
       setSelectedOrder(fallbackOrder);
       setTrackingInput(order.trackingNumber || '');
       setCourierInput(order.courier || 'JNE');
@@ -684,22 +689,22 @@ export default function OrdersClient({
                       </div>
 
                       {/* AREA MONITOR ULASAN CUSTOMER */}
-                      {item.review ? (
+                      {item.review && (Array.isArray(item.review) ? item.review.length > 0 : (!!item.review.id || Object.keys(item.review).length > 0)) ? (
                         <div className="pt-3 border-t border-dashed border-gray-200 bg-amber-50/40 p-3 rounded-xl">
                           <div className="flex items-center gap-2 mb-1">
                             <div className="flex items-center text-amber-600 text-xs font-bold gap-1 bg-amber-100/80 px-2 py-0.5 rounded-md">
-                              ⭐ {item.review.rating} / 5
+                              ⭐ {Array.isArray(item.review) ? item.review[0]?.rating : (item.review.rating || 5)} / 5
                             </div>
                             <span className="text-[11px] text-gray-400 font-medium">Ulasan masuk</span>
                           </div>
                           <p className="text-xs text-gray-700 font-medium italic mt-1.5">
-                            "{item.review.comment || 'Ulasan tanpa deskripsi tertulis.'}"
+                            "{Array.isArray(item.review) ? item.review[0]?.comment : (item.review.comment || 'Ulasan tanpa deskripsi tertulis.')}"
                           </p>
                           
-                          {item.review.image && (
+                          {(Array.isArray(item.review) ? item.review[0]?.image : item.review.image) && (
                             <div className="mt-2.5">
                               <img 
-                                src={item.review.image} 
+                                src={Array.isArray(item.review) ? item.review[0]?.image : item.review.image} 
                                 alt="Gambar Ulasan User" 
                                 className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm"
                               />

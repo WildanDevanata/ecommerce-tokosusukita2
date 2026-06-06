@@ -49,7 +49,7 @@ const enrichOrderData = (order: any) => ({
     productName: item.product?.name || 'Produk',
     quantity: item.quantity,
     price: item.price,
-    isReviewed: !!item.review,
+    isReviewed: !!item.review, // 🌟 Menghasilkan nilai true / false murni
     productBgColor: 'bg-gray-100',
     image: item.product?.image || null,
     review: item.review || null,
@@ -96,12 +96,19 @@ export async function GET() {
     });
 
     const enrichedOrders = orders.map((order) => {
+      // 🔥 PERBAIKAN LOGIKA: Pastikan item ada dan lakukan pengecekan valid terhadap field object review
       const allReviewed =
         order.items.length > 0 &&
-        order.items.every((item: any) => item.review);
+        order.items.every((item: any) => {
+          if (!item.review) return false;
+          // Jaga-jaga jika item.review berupa array kosong [] (Relasi HasMany) atau object kosong {}
+          if (Array.isArray(item.review)) return item.review.length > 0;
+          return !!item.review.id || Object.keys(item.review).length > 0;
+        });
 
       return enrichOrderData({
         ...order,
+        // Jika semua item sudah diulas, paksa statusnya di frontend/API menjadi 'REVIEWED'
         status: allReviewed ? 'REVIEWED' : order.status,
       });
     });
@@ -126,8 +133,6 @@ export async function POST(req: Request) {
     const isMidtrans = body.paymentMethod === 'MIDTRANS';
     const initialPaymentStatus = body.paymentStatus || 'PENDING';
     
-    // 🧠 LOGIKA SKIP STATUS: Jika menggunakan Midtrans dan status pembayarannya langsung PAID,
-    // maka status order langsung kita set 'PROCESSING' (Diproses), jika tidak tetap status asal atau 'PENDING'
     const initialOrderStatus = (isMidtrans && initialPaymentStatus === 'PAID') 
       ? 'PROCESSING' 
       : (body.status || 'PENDING');
@@ -139,7 +144,7 @@ export async function POST(req: Request) {
         totalAmount: body.totalAmount,
         shippingCost: body.shippingCost || 0,
         paymentStatus: initialPaymentStatus,
-        status: initialOrderStatus, // Menggunakan status yang sudah diskip jika lunas
+        status: initialOrderStatus,
         trackingNumber: body.trackingNumber || null,
         courier: body.courier || null,
         shippingService: body.shippingService || null,
@@ -199,7 +204,6 @@ export async function POST(req: Request) {
       const customerName = order.user?.name || body.shippingRecipient || "Pelanggan";
       const formattedAmount = Number(order.totalAmount).toLocaleString('id-ID');
 
-      // 1. Notifikasi Pesanan Masuk
       await prisma.notification.create({
         data: {
           userId: null,
@@ -210,7 +214,6 @@ export async function POST(req: Request) {
         },
       });
 
-      // 2. Notifikasi Pembayaran Diterima (Otomatis jika langsung PAID)
       if (initialPaymentStatus === 'PAID') {
         await prisma.notification.create({
           data: {

@@ -90,7 +90,6 @@ export async function GET(
   try {
     const { id } = await context.params;
     
-    // 🔍 KITA LOG DI SINI UNTUK MEMASTIKAN NILAI ID MASUK
     console.log("=== API ORDERS DEBUG ===");
     console.log("Mencari Order dengan ID/OrderNumber:", id);
 
@@ -121,7 +120,6 @@ export async function GET(
 }
 
 // ================= PATCH =================
-// ================= PATCH =================
 export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -147,6 +145,14 @@ export async function PATCH(
       );
     }
 
+    // 🛡️ SECURITY CHECK: Jika order sudah diulas (REVIEWED), status alur logistik tidak boleh diturunkan kembali
+    if (existingOrder.status === "REVIEWED" && body.status && body.status !== "REVIEWED") {
+      return NextResponse.json(
+        { error: "Pesanan telah selesai diulas oleh pembeli dan tidak dapat diubah status logistiknya kembali." },
+        { status: 400 }
+      );
+    }
+
     // VALIDASI CANCEL
     if (body.status === "CANCELLED" && existingOrder.status !== "PENDING") {
       return NextResponse.json(
@@ -167,29 +173,39 @@ export async function PATCH(
     if (body.paymentProofUrl !== undefined) updateData.paymentProofUrl = body.paymentProofUrl;
     if (body.snapToken !== undefined) updateData.snapToken = body.snapToken;
 
-    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE (Bukan parameter mentah)
-    const updatedOrder = await prisma.order.update({
-      where: {
-        id: existingOrder.id, // 🏆 DIUBAH KE ID ASLI AGAR AMAN
-      },
-      data: updateData,
-      include: {
-        user: true,
-        items: {
-          include: {
-            product: true,
-            review: true,
-          },
-        },
-      },
-    });
+    // JIKA USER UPLOAD BUKTI TRANSFER, OTOMATIS UBAH STATUS KE WAITING_VERIFICATION
+    if (body.paymentProofUrl && existingOrder.paymentStatus === 'PENDING') {
+      updateData.paymentStatus = 'WAITING_VERIFICATION';
+    }
+
+    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
+    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
+const [updatedOrder] = await prisma.$transaction([
+  // Update tabel Order
+  prisma.order.update({
+    where: { id: existingOrder.id },
+    data: updateData,
+    include: {
+      user: true,
+      items: { include: { product: true, review: true } },
+    },
+  }),
+  // Sinkronisasi ke tabel Payment
+  prisma.payment.updateMany({
+    where: { orderId: existingOrder.id },
+    data: {
+      paymentProof: body.paymentProofUrl || existingOrder.paymentProofUrl,
+      status: updateData.paymentStatus || 'WAITING_VERIFICATION',
+    },
+  }),
+]);
 
     // ================= LOGIKA TRIGGER NOTIFIKASI ADMIN =================
     const customerName = updatedOrder.user?.name || updatedOrder.shippingRecipient || "Pelanggan";
 
-    // KONDISI A: Membayar Pesanan (Diperlonggar: jika body meminta PAID, langsung buat notifikasi tanpa validasi ketat status lama)
-    if (body.paymentStatus === "PAID") {
-      console.log(`🚀 Trigger Notifikasi Pembayaran untuk Order #${updatedOrder.orderNumber}`);
+    // KONDISI A: Admin Memverifikasi Pembayaran (Menjadi Lunas)
+    if (body.paymentStatus === "PAID" && existingOrder.paymentStatus !== "PAID") {
+      console.log(`🚀 Trigger Notifikasi Pembayaran Lunas untuk Order #${updatedOrder.orderNumber}`);
       await prisma.notification.create({
         data: {
           userId: null, 
@@ -201,8 +217,22 @@ export async function PATCH(
       });
     }
 
+    // 🔥 KONDISI C (BARU): User Unggah Bukti Transfer Baru
+    if (body.paymentProofUrl && !existingOrder.paymentProofUrl) {
+      console.log(`📩 Trigger Notifikasi Bukti Pembayaran Masuk untuk Order #${updatedOrder.orderNumber}`);
+      await prisma.notification.create({
+        data: {
+          userId: null,
+          title: "Bukti Transfer Baru! 📥",
+          message: `${customerName} telah mengunggah bukti pembayaran untuk pesanan #${updatedOrder.orderNumber}. Mohon segera verifikasi.`,
+          type: "PAYMENT",
+          link: `/admin/payments`, // Langsung diarahkan ke modul manajemen pembayaran admin yang baru saja Anda perbaiki
+        },
+      });
+    }
+
     // KONDISI B: Menyelesaikan Pesanan
-    if (body.status === "DELIVERED" && existingOrder.status !== "DELIVERED") {
+    if (body.status === "DELIVERED" && existingOrder.status !== "DELIVERED" && existingOrder.status !== "REVIEWED") {
       await prisma.notification.create({
         data: {
           userId: null,
@@ -219,6 +249,7 @@ export async function PATCH(
     revalidatePath("/customer/orders");
     revalidatePath(`/customer/orders/${id}`);
     revalidatePath("/admin/orders");
+    revalidatePath("/admin/payments"); // Pastikan data pembayaran terbaru langsung bersih dari cache admin
 
     return NextResponse.json(formatOrderResponse(updatedOrder));
   } catch (error) {
@@ -233,11 +264,7 @@ export async function PATCH(
 // ================= DELETE =================
 export async function DELETE(
   req: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
-  }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
@@ -250,6 +277,7 @@ export async function DELETE(
     });
 
     revalidatePath("/customer/orders");
+    revalidatePath("/admin/orders");
 
     return NextResponse.json({
       message: "Order berhasil dihapus",

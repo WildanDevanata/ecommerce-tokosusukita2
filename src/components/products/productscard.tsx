@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation'; // 🚀 Impor useRouter untuk navigasi halaman
 import { Heart, ShoppingCart, Star, CheckCircle2 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
 
@@ -33,6 +34,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { addToCart, currentUser, wishlist, toggleWishlist } = useApp();
   const [showNotif, setShowNotif] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter(); // 🚀 Daftarkan router instansiasi
 
   const isCustomer = currentUser?.role === 'CUSTOMER';
   const isWishlisted = wishlist?.includes(product.id) || false;
@@ -41,17 +43,20 @@ export default function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!isCustomer || !currentUser?.id || isSubmitting) return;
+    // Jika belum login, arahkan ke login page
+    if (!isCustomer || !currentUser?.id) {
+      router.push('/login');
+      return;
+    }
+
+    if (isSubmitting) return;
 
     try {
       setIsSubmitting(true);
-
-      // 🚀 SEKARANG BERSIH: Cukup panggil fungsi global context saja
       if (addToCart) {
         await addToCart(product);
       }
 
-      // Munculkan notifikasi sukses
       setShowNotif(true);
       setTimeout(() => {
         setShowNotif(false);
@@ -65,12 +70,27 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
-  const handleWishlistToggle = (e: React.MouseEvent) => {
+  const handleWishlistToggle = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isCustomer) return;
-    if (toggleWishlist) {
-      toggleWishlist(product.id);
+    
+    // 🚀 PERBAIKAN 1: Jika user belum login, lempar ke halaman login
+    if (!isCustomer) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      if (toggleWishlist) {
+        // Tembak fungsi toggle context global (yang terhubung ke /api/wishlist)
+        await toggleWishlist(product.id);
+        
+        // 🚀 OPSIONAL/UX TIPS: Jika baru saja ditambahkan, bisa diarahkan langsung ke halaman wishlist
+        // Jika ingin langsung masuk halaman wishlist begitu diklik, buka baris di bawah ini:
+        // if (!isWishlisted) router.push('/customer/wishlist');
+      }
+    } catch (error) {
+      console.error('Gagal memperbarui wishlist:', error);
     }
   };
 
@@ -128,13 +148,14 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
+        {/* 🚀 PERBAIKAN 2: Atribut disabled dilepas agar tombol bisa diklik oleh Guest untuk diarahkan ke login */}
         <button
           type="button"
-          disabled={!isCustomer}
           onClick={handleWishlistToggle}
-          className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all disabled:opacity-0 disabled:pointer-events-none ${
-            isWishlisted ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-500'
+          className={`absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all active:scale-90 z-30 ${
+            isWishlisted ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'
           }`}
+          title={isWishlisted ? "Lihat/Hapus dari Wishlist" : "Tambah ke Wishlist"}
         >
           <Heart className="h-4 w-4" fill={isWishlisted ? 'currentColor' : 'none'} />
         </button>
@@ -170,18 +191,16 @@ export default function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
 
-          {isCustomer && (
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={handleAddToCart}
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 ${
-                isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:bg-blue-700'
-              }`}
-            >
-              <ShoppingCart className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleAddToCart}
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 ${
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:bg-blue-700'
+            }`}
+          >
+            <ShoppingCart className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </Link>

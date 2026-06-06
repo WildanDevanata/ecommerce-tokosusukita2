@@ -4,10 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image'; 
 import { useRouter } from 'next/navigation';
-import { Heart, ShoppingCart, Trash2, ArrowLeft, Search, X, CheckCircle2 } from 'lucide-react';
+import { Heart, ShoppingCart, Trash2, ArrowLeft, Search, X, CheckCircle2, Loader2 } from 'lucide-react';
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
-import { useApp, Product } from '@/store/appcontext'; 
+import { useApp } from '@/store/appcontext'; 
 
 const formatRupiah = (value: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -18,24 +18,32 @@ const formatRupiah = (value: number) => {
 };
 
 export default function WishlistPage() {
-  const { wishlist, toggleWishlist, addToCart, products, isLoggedIn } = useApp();
+  // 🚀 PERBAIKAN UTAMA: Ambil data global reaktif dari AppContext. 
+  // Tidak perlu lagi hit fetch local state di sini agar sinkronisasi 100% akurat.
+  const { products, wishlist, toggleWishlist, addToCart, isLoggedIn, loading } = useApp();
   const router = useRouter();
+  
   const [search, setSearch] = useState('');
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
-
-  // ➕ State untuk toast pop-up pesan sukses
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Filter produk global yang ID-nya ada di dalam daftar array wishlist
-  const wishlisted = products.filter(p => wishlist.includes(p.id));
+  // Jika user belum login, langsung amankan ke halaman login
+  if (!isLoggedIn && !loading) {
+    router.push('/login');
+    return null;
+  }
 
-  const filtered = wishlisted.filter(p =>
+  // 🚀 SINKRONISASI DATA: Ambil detail data produk lengkap dari array `products` 
+  // yang ID-nya tercatat di database array string `wishlist` global
+  const wishlistedProducts = products.filter(p => wishlist?.includes(p.id));
+
+  // Jalankan filter jika user menggunakan bar pencarian
+  const filtered = wishlistedProducts.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.category?.name && p.category.name.toLowerCase().includes(search.toLowerCase())) ||
     (p.categoryName && p.categoryName.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // ➕ Fungsi helper untuk menampilkan pop-up pesan
   const showPopupMessage = (message: string) => {
     setToastMessage(message);
     setTimeout(() => {
@@ -43,15 +51,16 @@ export default function WishlistPage() {
     }, 3000);
   };
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = async (product: any) => {
     if (!isLoggedIn) { 
       router.push('/login'); 
       return; 
     }
     
-    addToCart(product);
+    if (addToCart) {
+      await addToCart(product);
+    }
 
-    // Tampilkan pop-up pesan untuk satu produk
     showPopupMessage(`${product.name} berhasil masuk keranjang!`);
 
     setAddedIds(prev => new Set(prev).add(product.id));
@@ -62,33 +71,31 @@ export default function WishlistPage() {
     }), 2000);
   };
 
-  const handleRemove = (productId: string) => {
-    setRemovingIds(prev => new Set(prev).add(productId));
-    setTimeout(() => {
-      toggleWishlist(productId);
-      setRemovingIds(prev => { 
-        const s = new Set(prev); 
-        s.delete(productId); 
-        return s; 
-      });
-    }, 300);
+  const handleRemove = async (productId: string) => {
+    try {
+      // 🚀 SINKRONISASI DATABASE: Panggil fungsi global yang otomatis melakukan hit POST/DELETE ke database PostgreSQL
+      if (toggleWishlist) {
+        await toggleWishlist(productId);
+        showPopupMessage("Produk berhasil dihapus dari wishlist");
+      }
+    } catch (error) {
+      console.error("Gagal menghapus wishlist:", error);
+    }
   };
 
-  const handleMoveAllToCart = () => {
+  const handleMoveAllToCart = async () => {
     if (!isLoggedIn) { 
       router.push('/login'); 
       return; 
     }
     
     const availableProducts = filtered.filter(p => p.stock > 0);
-
     if (availableProducts.length === 0) return;
 
-    availableProducts.forEach(p => {
-      addToCart(p);
-    });
+    if (addToCart) {
+      await Promise.all(availableProducts.map(p => addToCart(p)));
+    }
 
-    // Tampilkan pop-up pesan untuk semua produk yang berhasil dimasukkan
     showPopupMessage(`Semua produk tersedia (${availableProducts.length} item) berhasil masuk keranjang!`);
   };
 
@@ -96,18 +103,17 @@ export default function WishlistPage() {
     <>
       <Navbar />
       
-      {/* ➕ FLOAT TOAST NOTIFIKASI */}
+      {/* FLOAT TOAST NOTIFIKASI */}
       {toastMessage && (
         <div className="fixed top-24 right-5 z-50 flex items-center gap-3 bg-green-600 text-white px-5 py-3.5 rounded-2xl shadow-xl border border-green-500 animate-in fade-in slide-in-from-top-4 duration-300">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-          <div className="text-sm font-semibold">
-            {toastMessage}
-          </div>
+          <div className="text-sm font-semibold">{toastMessage}</div>
         </div>
       )}
 
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-5xl mx-auto py-8 px-4">
+          
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
             <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-gray-100">
@@ -117,9 +123,9 @@ export default function WishlistPage() {
               <div className="flex items-center gap-2">
                 <Heart className="w-5 h-5 text-red-500" fill="currentColor" />
                 <h1 className="text-gray-800 text-xl font-bold">Wishlist Saya</h1>
-                {wishlisted.length > 0 && (
+                {wishlistedProducts.length > 0 && (
                   <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
-                    {wishlisted.length} produk
+                    {wishlistedProducts.length} produk
                   </span>
                 )}
               </div>
@@ -127,8 +133,14 @@ export default function WishlistPage() {
             </div>
           </div>
 
-          {wishlisted.length === 0 ? (
-            /* ── Empty State ── */
+          {/* LOADING STATE */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-gray-100">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
+              <p className="text-sm text-gray-500">Memuat wishlist Anda...</p>
+            </div>
+          ) : wishlistedProducts.length === 0 ? (
+            /* Empty State */
             <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
               <div className="text-7xl mb-4">💝</div>
               <h2 className="text-gray-700 font-semibold mb-2">Wishlist Masih Kosong</h2>
@@ -188,24 +200,29 @@ export default function WishlistPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filtered.map(product => {
                     const isAdded = addedIds.has(product.id);
-                    const isRemoving = removingIds.has(product.id);
                     const outOfStock = product.stock === 0;
 
                     return (
                       <div
                         key={product.id}
-                        className={`bg-white rounded-2xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md ${isRemoving ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+                        className="bg-white rounded-2xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md opacity-100 scale-100"
                       >
                         {/* Product image area */}
                         <Link href={`/products/${product.slug}`} className="block relative">
                           <div className={`relative aspect-[4/3] w-full overflow-hidden ${product.bgColor || 'bg-stone-100'}`}>
-                            <Image
-                              src={product.image || '/images/placeholder-product.png'}
-                              alt={product.name}
-                              fill
-                              className="object-cover transition-transform duration-300 hover:scale-105"
-                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            />
+                            {product.image ? (
+                              <Image
+                                src={product.image}
+                                alt={product.name}
+                                fill
+                                className="object-cover transition-transform duration-300 hover:scale-105"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-[50px]">{product.emoji || '🛍️'}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Badges */}
@@ -239,7 +256,7 @@ export default function WishlistPage() {
                         {/* Info */}
                         <div className="p-4">
                           <Link href={`/products/${product.slug}`}>
-                            <p className="text-xs text-gray-400 mb-1">{product.categoryName || 'Susu'}</p>
+                            <p className="text-xs text-gray-400 mb-1">{product.category?.name || product.categoryName || 'Susu'}</p>
                             <p className="text-sm font-medium text-gray-800 line-clamp-2 mb-2 hover:text-blue-600 transition-colors leading-snug">
                               {product.name}
                             </p>

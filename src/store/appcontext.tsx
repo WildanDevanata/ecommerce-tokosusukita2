@@ -37,9 +37,9 @@ export interface Order {
   userName: string; 
   totalAmount: number;
   shippingCost: number;
-  paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED' | 'EXPIRED'; // ◄ SINKRONISASI: Tambah EXPIRED sesuai DB
+  paymentStatus: 'PENDING' | 'WAITING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED' | 'EXPIRED';
   paymentMethod?: string;
-  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REVIEWED'; // ◄ SINKRONISASI: Tambah REVIEWED
+  status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REVIEWED';
   createdAt: string;
   updatedAt: string;
   paymentProofUrl?: string;
@@ -79,7 +79,7 @@ export interface Product {
   name: string;
   slug: string;
   price: number;
-  categoryId: string; // ◄ TETAP WAJIB: Sesuai aturan DB Prisma
+  categoryId: string;
   image?: string | null;
   bgColor?: string | null;
   rating: number;
@@ -91,7 +91,7 @@ export interface Product {
   categoryName?: string;
   isNew?: boolean;
   isBestSeller?: boolean;
-  reviewCount: number; // ◄ SINKRONISASI: Ditambahkan agar match dengan ProductCard
+  reviewCount: number;
   category?: {
     id: string;
     name: string;
@@ -154,6 +154,7 @@ export interface AppContextType {
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
   refreshCart: (userId: string) => Promise<void>; 
+  refreshWishlist: (userId: string) => Promise<void>; // 🚀 Sinkronisasi data awal wishlist
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
@@ -171,7 +172,7 @@ export interface AppContextType {
   addToCart: (item: Product) => Promise<void>;
   removeFromCart: (id: string) => Promise<void>;
   updateCartQty: (id: string, qty: number) => Promise<void>;
-  toggleWishlist: (id: string) => void;
+  toggleWishlist: (id: string) => Promise<void>; // 🚀 Diubah ke Promise Async
 
   login: (user: User) => void;
   loginGoogle: () => void; 
@@ -290,6 +291,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // 🚀 BARU: Fungsi untuk menarik data wishlist milik user dari Database
+  const refreshWishlist = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/wishlist?userId=${userId}`);
+      const result = await res.json();
+      if (result.success) {
+        // Asumsi API mengembalikan array object: [{ productId: "abc" }, { productId: "xyz" }]
+        // Kita map menjadi array string berisi ID produknya saja agar cocok dengan logic state UI
+        setWishlist(result.data.map((item: any) => item.productId));
+      }
+    } catch (error) {
+      console.error("Gagal sinkronisasi data wishlist database:", error);
+    }
+  };
+
   // ================= INITIAL LOAD =================
   useEffect(() => {
     const initData = async () => {
@@ -303,14 +319,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       ]);
 
       const savedUser = localStorage.getItem('user');
-      const savedWishlist = localStorage.getItem('wishlist');
 
       if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
           setCurrentUser(parsedUser);
           setIsLoggedIn(true);
-          await refreshCart(parsedUser.id || 'user2');
+          
+          // Sinkronisasi data Cart & Wishlist dari database sewaktu inisialisasi awal app
+          await refreshCart(parsedUser.id);
+          await refreshWishlist(parsedUser.id);
         } catch (e) {
           console.error(e);
         }
@@ -319,15 +337,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         if (savedCart) {
           try { setCart(JSON.parse(savedCart)); } catch (e) {}
         }
-      }
-
-      if (savedWishlist) {
-        try {
-          setWishlist(JSON.parse(savedWishlist));
-        } catch (e) {
-          console.error(e);
+        const savedWishlist = localStorage.getItem('wishlist');
+        if (savedWishlist) {
+          try { setWishlist(JSON.parse(savedWishlist)); } catch (e) {}
         }
       }
+
       setIsInitialized(true);
       setLoading(false);
     };
@@ -343,16 +358,39 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }, [cart, isInitialized, currentUser]);
 
   useEffect(() => {
-    if (isInitialized) {
+    if (isInitialized && !currentUser) {
       localStorage.setItem('wishlist', JSON.stringify(wishlist));
     }
-  }, [wishlist, isInitialized]);
+  }, [wishlist, isInitialized, currentUser]);
 
   // ================= ACTIONS =================
-  const toggleWishlist = (id: string) => {
-    setWishlist((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-    );
+  
+  // 🚀 PERBAIKAN UTAMA: Hubungkan toggleWishlist ke Database API
+  const toggleWishlist = async (productId: string) => {
+    if (!currentUser) return;
+
+    try {
+      const res = await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, productId }),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        // Perbarui state lokal berdasarkan balikan backend (apakah di-add atau di-remove)
+        setWishlist((prev) => {
+          if (result.isWishlisted) {
+            return prev.includes(productId) ? prev : [...prev, productId];
+          } else {
+            return prev.filter((id) => id !== productId);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Gagal memperbarui wishlist di Database:", error);
+    }
   };
 
   const addCategory = (c: Category) => {
@@ -521,6 +559,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(user));
     document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
     refreshCart(user.id); 
+    refreshWishlist(user.id); // 🚀 Tarik wishlist DB saat login biasa
   };
 
   const loginGoogle = () => {
@@ -539,8 +578,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoggedIn(false);
     localStorage.removeItem('user');
     localStorage.removeItem('cart');
+    localStorage.removeItem('wishlist');
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     setCart([]);
+    setWishlist([]); // Kosongkan wishlist state
   };
 
   const uploadPaymentProof = async (orderId: string, proofUrl: string, paymentMethod: string) => {
@@ -634,6 +675,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshOrders,
         refreshUsers,
         refreshCart, 
+        refreshWishlist, // 🚀 Diekspos ke provider
         setProducts,
         setCategories,
         setUsers,

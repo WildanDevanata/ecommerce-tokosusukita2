@@ -7,6 +7,7 @@ async function main() {
   // Hapus urutan terbalik untuk menghindari error foreign key
   await prisma.notification.deleteMany();
   await prisma.payment.deleteMany();
+  await prisma.wishlist.deleteMany(); // ◄ ✅ TAMBAHAN: Bersihkan model wishlist baru
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.cartItem.deleteMany();
@@ -252,7 +253,7 @@ async function main() {
     await prisma.bankAccount.create({ data: bank });
   }
 
-  // 5. Seed Orders + Nested Payment Creation (Penyeimbang Data)
+  // 5. Seed Orders 
   const ordersData = [
     {
       id: 'ord1',
@@ -262,7 +263,6 @@ async function main() {
       shippingCost: 25000,
       status: 'DELIVERED',
       paymentStatus: 'PAID',
-      paymentMethod: 'TRANSFER',
       trackingNumber: 'JNE2024001234',
       courier: 'JNE',
       shippingRecipient: 'Budi Santoso',
@@ -293,7 +293,6 @@ async function main() {
       shippingCost: 20000,
       status: 'SHIPPED',
       paymentStatus: 'PAID',
-      paymentMethod: 'MIDTRANS',
       trackingNumber: 'SICEPAT2024005678',
       courier: 'SiCepat',
       shippingRecipient: 'Siti Rahayu',
@@ -323,7 +322,6 @@ async function main() {
       shippingCost: 15000,
       status: 'PROCESSING',
       paymentStatus: 'PAID',
-      paymentMethod: 'EWALLET',
       shippingRecipient: 'Ahmad Fauzi',
       shippingPhone: '084567890123',
       shippingAddress: 'Jl. Kenanga No. 7',
@@ -351,14 +349,17 @@ async function main() {
       totalAmount: 164500,
       shippingCost: 20000,
       status: 'CONFIRMED',
-      paymentStatus: 'PENDING', // Diubah menjadi PENDING/standar enum yang menampung Verifikasi Manual
-      paymentMethod: 'TRANSFER',
+      paymentStatus: 'PENDING',
       shippingRecipient: 'Dewi Lestari',
       shippingPhone: '085678901234',
       shippingAddress: 'Griya Indah B-12',
       shippingCity: 'Tangerang',
       shippingProvince: 'Banten',
       shippingPostalCode: '15117',
+      
+      // ◄ ✅ DIPERBAIKI: Menggunakan field 'paymentProofUrl' yang sejalan dengan skema baru Anda
+      paymentProofUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400', 
+      
       createdAt: new Date('2024-04-18T16:30:00'),
       updatedAt: new Date('2024-04-18T20:00:00'),
       items: {
@@ -381,7 +382,6 @@ async function main() {
       shippingCost: 25000,
       status: 'PENDING',
       paymentStatus: 'PENDING',
-      paymentMethod: 'TRANSFER',
       shippingRecipient: 'Eko Prasetyo',
       shippingPhone: '087890123456',
       shippingAddress: 'Jl. Anggrek No. 3',
@@ -409,8 +409,7 @@ async function main() {
       totalAmount: 490000,
       shippingCost: 25000,
       status: 'CANCELLED',
-      paymentStatus: 'FAILED', // Sesuai standarisasi enum kegagalan pembayaran di sistem
-      paymentMethod: 'MIDTRANS',
+      paymentStatus: 'FAILED',
       shippingRecipient: 'Nurul Hidayah',
       shippingPhone: '088901234567',
       shippingAddress: 'Jl. Cendana No. 8',
@@ -439,7 +438,6 @@ async function main() {
       shippingCost: 30000,
       status: 'PENDING',
       paymentStatus: 'PENDING',
-      paymentMethod: 'TRANSFER',
       shippingRecipient: 'Budi Santoso',
       shippingPhone: '082345678901',
       shippingAddress: 'Jl. Melati No. 25',

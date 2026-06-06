@@ -1,0 +1,2 @@
+npm install prisma@5.10.2 @prisma/client@5.10.2   
+jika api error meskkipun sudah update migrate & seeding & npx prisma generate, coba cek kembali apakah sudah benar nama modelnya di schema.prisma, karena error tersebut biasanya muncul ketika nama model tidak sesuai dengan yang ada di database. Pastikan juga bahwa kamu sudah menjalankan perintah migrate dan seeding setelah melakukan perubahan pada schema.prisma.    

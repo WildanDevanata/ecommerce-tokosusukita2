@@ -74,6 +74,7 @@ model User {
   notifications Notification[]
   cartItems     CartItem[]
   reviews       Review[]
+  wishlists     Wishlist[]     // ◄ ✅ Relasi balik untuk Wishlist
 }
 
 model Address {
@@ -109,8 +110,8 @@ model Product {
   slug          String      @unique
   categoryId    String
   category      Category    @relation(fields: [categoryId], references: [id])
-  price         Int         // ◄ Dioptimalkan ke Int untuk Rupiah (Mencegah RpNaN)
-  originalPrice Int?        // ◄ Dioptimalkan ke Int
+  price         Int         
+  originalPrice Int?        
   stock         Int         @default(0)
   rating        Float       @default(0)
   reviewCount   Int         @default(0)
@@ -130,6 +131,21 @@ model Product {
   orderItems    OrderItem[]
   cartItems     CartItem[]
   reviews       Review[]
+  wishlists     Wishlist[]  // ◄ ✅ Relasi balik untuk Wishlist
+}
+
+// 🆕 ✅ MODEL WISHLIST (Ditempatkan strategis di bawah User & Product)
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId]) // Mencegah duplikasi produk yang sama di wishlist user
+  @@index([userId])
 }
 
 model Order {
@@ -137,8 +153,8 @@ model Order {
   orderNumber        String        @unique
   userId             String
   user               User          @relation(fields: [userId], references: [id])
-  totalAmount        Int           // ◄ Dioptimalkan ke Int
-  shippingCost       Int           @default(0) // ◄ Dioptimalkan ke Int
+  totalAmount        Int           
+  shippingCost       Int           @default(0) 
   status             OrderStatus   @default(PENDING)
   paymentStatus      PaymentStatus @default(PENDING)
   
@@ -147,6 +163,10 @@ model Order {
   shippingService    String?
   shippingEtd        String?
   notes              String?
+
+  // ✅ Sinkronisasi Bukti Pembayaran Manual untuk Frontend OrderDetailPage
+  paymentProofUrl    String?       
+  snapToken          String?       // Mudahkan tracking Snap token langsung dari Order
   
   shippingRecipient  String
   shippingPhone      String
@@ -192,7 +212,7 @@ model OrderItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
   quantity  Int
-  price     Int     // ◄ Dioptimalkan ke Int (Harga saat dibeli)
+  price     Int     // Harga pengunci saat transaksi dibeli
   review    Review?
 
   @@index([orderId])
@@ -208,7 +228,7 @@ model Payment {
   
   method        PaymentMethod 
   status        PaymentStatus @default(PENDING)
-  amount        Int           // ◄ Dioptimalkan ke Int
+  amount        Int           
   
   snapToken     String?       
   transactionId String?       
@@ -258,5 +278,5 @@ model CartItem {
   quantity  Int     @default(1)
 
   @@unique([userId, productId])
-  @@index([userId]) // ◄ Optimal untuk render item keranjang dengan cepat
+  @@index([userId]) 
 }

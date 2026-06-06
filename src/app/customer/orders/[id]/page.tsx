@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image'; 
 import { useParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Upload, CheckCircle2, Truck,
+  ArrowLeft, Upload, CheckCircle2, Truck, Calendar,
   MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send, ExternalLink
 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
@@ -113,7 +113,6 @@ export default function OrderDetailPage() {
         (window as any).snap.pay(data.snapToken, {
           onSuccess: async function(result: any){
             alert("Pembayaran berhasil!");
-            
             try {
               const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
                 method: 'POST',
@@ -131,7 +130,6 @@ export default function OrderDetailPage() {
             } catch (err) {
               console.error("Gagal memperbarui status order di DB:", err);
             }
-
             router.refresh(); 
           },
           onPending: function(result: any){
@@ -148,7 +146,6 @@ export default function OrderDetailPage() {
       } else {
         alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
       }
-
     } catch (error: any) {
       console.error(error);
       alert(error.message || "Gagal memproses pembayaran Midtrans");
@@ -170,7 +167,6 @@ export default function OrderDetailPage() {
         method: 'POST',
         body: formData,
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || "Gagal upload ke Cloudinary");
       return data.secure_url;
@@ -282,7 +278,17 @@ export default function OrderDetailPage() {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-800">Detail Pesanan</h1>
-            <p className="text-gray-500 text-sm font-mono">{order.orderNumber}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+              <p className="text-gray-500 text-sm font-mono">{order.orderNumber}</p>
+              {/* 🆕 1. TAMBAH TANGGAL ORDER DI BAWAH ORDER NUMBER */}
+              {order.createdAt && (
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <span className="text-gray-300">•</span>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -330,20 +336,40 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {order.trackingNumber && (
-                <div className="mt-6 p-4 bg-indigo-50 rounded-xl flex items-center gap-4 border border-indigo-100">
-                  <div className="p-2 bg-indigo-600 rounded-lg text-white">
-                    <Truck className="w-5 h-5" />
+              {/* 🆕 2. MODIFIKASI AREA RESI: Tambah Layanan Courier, Service & Estimasi ETD */}
+              {order.courier && (
+                <div className="mt-6 p-4 bg-indigo-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-100">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-indigo-600 rounded-lg text-white flex-shrink-0">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Informasi Pengiriman</p>
+                      <p className="text-sm font-bold text-indigo-900 mt-0.5">
+                        {order.courier} {order.shippingService ? ` - Kurir ${order.shippingService}` : ''}
+                      </p>
+                      {order.trackingNumber ? (
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">No. Resi: {order.trackingNumber}</p>
+                      ) : (
+                        <p className="text-xs text-amber-600 mt-0.5 font-medium">Resi belum diinput oleh Admin</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Nomor Resi</p>
-                    <p className="text-sm font-bold text-indigo-900">{order.trackingNumber} ({order.courier})</p>
-                  </div>
+                  
+                  {/* Estimasi Pengiriman (ETD) */}
+                  {order.shippingEtd && (
+                    <div className="border-t sm:border-t-0 sm:border-l border-indigo-200/60 pt-3 sm:pt-0 sm:pl-4 flex-shrink-0">
+                      <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Estimasi Tiba</p>
+                      <p className="text-sm font-black text-indigo-900 bg-white/80 border border-indigo-100 rounded-lg px-2.5 py-1 mt-0.5 inline-block sm:block">
+                        ⏱️ {order.shippingEtd}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
               
-              {/* 🆕 Section Bukti Pembayaran (Muncul jika status CONFIRMED atau lebih) */}
+              {/* Section Bukti Pembayaran */}
             {(order.status !== 'PENDING' && order.status !== 'CANCELLED') && order.paymentProofUrl && (
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
@@ -370,6 +396,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             )}
+
             {/* Payment Instructions */}
             {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
@@ -444,7 +471,6 @@ export default function OrderDetailPage() {
                         <div className="mt-3 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center bg-white shadow-sm space-y-4">
                           {previewUrl ? (
                             <div className="relative max-w-xs mx-auto rounded-xl overflow-hidden border border-gray-200 bg-gray-50 p-2 shadow-inner">
-                              {/* 🛠️ Diperbaiki menggunakan komponen Image Next.js unoptimized khusus Local Blob URL */}
                               <Image
                                 src={previewUrl}
                                 alt="Preview Bukti Transfer"
@@ -513,22 +539,20 @@ export default function OrderDetailPage() {
                 {(order.items || []).map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 py-4">
                     <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
-                     {/* Ganti bagian Image Anda dengan ini untuk pengujian */}
-<div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100">
-  {item.image && item.image.length > 5 ? (
-    <Image
-      src={item.image}
-      alt={item.productName}
-      fill
-      className="object-cover"
-    />
-  ) : (
-    <div className="flex items-center justify-center h-full w-full">
-      {/* Jika ini muncul, berarti URL gambar dianggap invalid/kosong oleh JavaScript */}
-      <span className="text-2xl">{item.productEmoji || '🥛'}</span>
-    </div>
-  )}
-</div>
+                      <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100">
+                        {item.image && item.image.length > 5 ? (
+                          <Image
+                            src={item.image}
+                            alt={item.productName}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full w-full">
+                            <span className="text-2xl">{item.productEmoji || '🥛'}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
@@ -600,7 +624,6 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              {/* 🛠️ BAGIAN UTAMA YANG DIPERBAIKI: Status Order & Status Pembayaran Dipisahkan */}
               <div className="mt-8 space-y-3">
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                   <span className="text-xs font-bold text-gray-400 uppercase">Status Order</span>
@@ -691,29 +714,27 @@ export default function OrderDetailPage() {
                     placeholder="Masukkan alasan pembatalan Anda secara detail di sini..."
                     value={customReason}
                     onChange={(e) => setCustomReason(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800"
-                    required
+                    className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                   />
                 </div>
               )}
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
                 type="button"
                 onClick={() => setIsCancelModalOpen(false)}
-                disabled={isCancelling}
-                className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
+                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-100 transition-colors"
               >
                 Kembali
               </button>
               <button
                 type="button"
                 onClick={confirmCancelOrder}
-                disabled={isCancelling || (selectedReason.startsWith("Lainnya") && !customReason.trim())}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                disabled={isCancelling}
+                className="flex-1 py-3 bg-red-600 text-white font-bold text-sm rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
               >
-                {isCancelling ? 'Membatalkan...' : 'Konfirmasi Batal'}
+                {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ya, Batalkan'}
               </button>
             </div>
           </div>

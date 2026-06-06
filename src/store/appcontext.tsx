@@ -24,7 +24,7 @@ export interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: 'ORDER' | 'PAYMENT' | 'INFO';
+  type: 'ORDER' | 'PAYMENT' | 'STOCK' | 'SYSTEM' | 'REVIEW'; // Diselaraskan dengan enum Prisma
   isRead: boolean;
   link?: string;
   createdAt: string | Date;
@@ -154,7 +154,8 @@ export interface AppContextType {
   refreshOrders: () => Promise<void>;
   refreshUsers: () => Promise<void>;
   refreshCart: (userId: string) => Promise<void>; 
-  refreshWishlist: (userId: string) => Promise<void>; // 🚀 Sinkronisasi data awal wishlist
+  refreshWishlist: (userId: string) => Promise<void>;
+  refreshNotifications: () => Promise<void>; // 🚀 BARU: Sinkronisasi Notifikasi Database
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
@@ -172,7 +173,7 @@ export interface AppContextType {
   addToCart: (item: Product) => Promise<void>;
   removeFromCart: (id: string) => Promise<void>;
   updateCartQty: (id: string, qty: number) => Promise<void>;
-  toggleWishlist: (id: string) => Promise<void>; // 🚀 Diubah ke Promise Async
+  toggleWishlist: (id: string) => Promise<void>; 
 
   login: (user: User) => void;
   loginGoogle: () => void; 
@@ -185,8 +186,8 @@ export interface AppContextType {
 
   notifications: NotificationItem[];
   unreadCount: number;
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
+  markNotificationRead: (id: string) => Promise<void>; // Diubah ke async db
+  markAllNotificationsRead: () => Promise<void>;      // Diubah ke async db
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -207,17 +208,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'Pesanan Baru Masuk 🍼',
-      message: 'User Wildan telah memesan Susu Formula SGM 400g.',
-      type: 'ORDER',
-      isRead: false,
-      link: '/admin/orders',
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  // 🛠️ PERBAIKAN UTAMA: Kosongkan data tiruan mock data dari array state asal
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // ================= FETCH FUNCTIONS =================
   const refreshProducts = async () => {
@@ -291,18 +283,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🚀 BARU: Fungsi untuk menarik data wishlist milik user dari Database
   const refreshWishlist = async (userId: string) => {
     try {
       const res = await fetch(`/api/wishlist?userId=${userId}`);
       const result = await res.json();
       if (result.success) {
-        // Asumsi API mengembalikan array object: [{ productId: "abc" }, { productId: "xyz" }]
-        // Kita map menjadi array string berisi ID produknya saja agar cocok dengan logic state UI
         setWishlist(result.data.map((item: any) => item.productId));
       }
     } catch (error) {
       console.error("Gagal sinkronisasi data wishlist database:", error);
+    }
+  };
+
+  // 🚀 BARU: Tarik data Notifikasi Riil Milik Admin (userId = null) dari Database API
+  const refreshNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications'); // Pastikan endpoint ini mengarah ke pencarian data db
+      if (!res.ok) throw new Error('Gagal fetch notifikasi');
+      const result = await res.json();
+      if (result.success) {
+        setNotifications(result.data);
+      } else if (Array.isArray(result)) {
+        setNotifications(result);
+      }
+    } catch (error) {
+      console.error("Gagal sinkronisasi data notifikasi database:", error);
     }
   };
 
@@ -316,6 +321,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshUsers(),
         fetchBankAccounts(),
         refreshProducts(),
+        refreshNotifications(), // 🚀 Jalankan penarikan notifikasi asli saat app pertama kali dimuat
       ]);
 
       const savedUser = localStorage.getItem('user');
@@ -326,7 +332,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           setCurrentUser(parsedUser);
           setIsLoggedIn(true);
           
-          // Sinkronisasi data Cart & Wishlist dari database sewaktu inisialisasi awal app
           await refreshCart(parsedUser.id);
           await refreshWishlist(parsedUser.id);
         } catch (e) {
@@ -350,6 +355,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initData();
   }, []);
 
+  // Polling Sederhana: Sinkronisasi notifikasi admin secara otomatis setiap 15 detik
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const interval = setInterval(() => {
+      refreshNotifications();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn]);
+
   // ================= SAVE TO LOCALSTORAGE (Offline Backup) =================
   useEffect(() => {
     if (isInitialized && !currentUser) {
@@ -365,21 +379,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ================= ACTIONS =================
   
-  // 🚀 PERBAIKAN UTAMA: Hubungkan toggleWishlist ke Database API
   const toggleWishlist = async (productId: string) => {
     if (!currentUser) return;
-
     try {
       const res = await fetch('/api/wishlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, productId }),
       });
-
       const result = await res.json();
-
       if (result.success) {
-        // Perbarui state lokal berdasarkan balikan backend (apakah di-add atau di-remove)
         setWishlist((prev) => {
           if (result.isWishlisted) {
             return prev.includes(productId) ? prev : [...prev, productId];
@@ -500,14 +509,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const addToCart = async (item: Product) => {
     const activeUserId = currentUser?.id || 'user2';
-
     try {
       const res = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: activeUserId, productId: item.id }),
       });
-
       if (res.ok) {
         await refreshCart(activeUserId); 
       }
@@ -521,7 +528,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const res = await fetch(`/api/cart?id=${cartItemId}`, {
         method: 'DELETE',
       });
-
       if (res.ok) {
         setCart((prev) => prev.filter((item) => item.id !== cartItemId));
       }
@@ -535,14 +541,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       await removeFromCart(cartItemId);
       return;
     }
-
     try {
       const res = await fetch('/api/cart', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cartItemId, quantity: qty }),
       });
-
       if (res.ok) {
         setCart((prev) =>
           prev.map((item) => (item.id === cartItemId ? { ...item, quantity: qty } : item))
@@ -559,7 +563,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(user));
     document.cookie = `role=${user.role}; path=/; max-age=${7 * 24 * 60 * 60}`;
     refreshCart(user.id); 
-    refreshWishlist(user.id); // 🚀 Tarik wishlist DB saat login biasa
+    refreshWishlist(user.id);
   };
 
   const loginGoogle = () => {
@@ -581,7 +585,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('wishlist');
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     setCart([]);
-    setWishlist([]); // Kosongkan wishlist state
+    setWishlist([]); 
+    setNotifications([]); // Bersihkan riwayat saat logout
   };
 
   const uploadPaymentProof = async (orderId: string, proofUrl: string, paymentMethod: string) => {
@@ -635,14 +640,26 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  const markNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+  // 🚀 PERBAIKAN: Hubungkan aksi baca notifikasi ke Backend API database
+  const markNotificationRead = async (id: string) => {
+    try {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  // 🚀 PERBAIKAN: Hubungkan aksi baca semua notifikasi ke Backend API database
+  const markAllNotificationsRead = async () => {
+    try {
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await fetch(`/api/notifications/read-all`, { method: 'PATCH' });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const unreadCount = useMemo(() => {
@@ -675,7 +692,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshOrders,
         refreshUsers,
         refreshCart, 
-        refreshWishlist, // 🚀 Diekspos ke provider
+        refreshWishlist,
+        refreshNotifications, // Diekspos secara global
         setProducts,
         setCategories,
         setUsers,

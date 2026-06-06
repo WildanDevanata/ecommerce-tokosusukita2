@@ -21,7 +21,6 @@ const formatOrderResponse = (order: any) => ({
   trackingNumber: order.trackingNumber,
   courier: order.courier,
 
-  // ✅ TAMBAHAN
   shippingService: order.shippingService || null,
   shippingEtd: order.shippingEtd || null,
 
@@ -33,7 +32,6 @@ const formatOrderResponse = (order: any) => ({
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
 
-  // ✅ USER INFO
   userName:
     order.user?.name ||
     order.shippingRecipient ||
@@ -91,8 +89,11 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    
+    // 🔍 KITA LOG DI SINI UNTUK MEMASTIKAN NILAI ID MASUK
+    console.log("=== API ORDERS DEBUG ===");
+    console.log("Mencari Order dengan ID/OrderNumber:", id);
 
-    // Coba cari berdasarkan ID (UUID) terlebih dahulu, jika tidak ada, cari berdasarkan orderNumber
     const order = await prisma.order.findFirst({
       where: {
         OR: [
@@ -107,172 +108,124 @@ export async function GET(
     });
 
     if (!order) {
+      console.log(`❌ Order dengan ID ${id} TIDAK DITEMUKAN di database.`);
       return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
     }
 
+    console.log(`✅ Order ditemukan! Nomor Order: ${order.orderNumber}`);
     return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
+    console.error("💥 CRASH PADA GET API ORDERS:", error);
     return NextResponse.json({ error: "Gagal mengambil detail order" }, { status: 500 });
   }
 }
+
+// ================= PATCH =================
 // ================= PATCH =================
 export async function PATCH(
   req: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
-  }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
-
     const body = await req.json();
 
-    // ✅ CARI ORDER BERDASARKAN orderNumber
-    const existingOrder =
-      await prisma.order.findUnique({
-        where: {
-          orderNumber: id,
-        },
-      });
+    // 1. CARI ORDER BERDASARKAN ID ATAU ORDERNUMBER SECARA FLEKSIBEL
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { orderNumber: id }
+        ]
+      },
+    });
 
     if (!existingOrder) {
       return NextResponse.json(
-        {
-          error:
-            "Order tidak ditemukan",
-        },
-        {
-          status: 404,
-        }
+        { error: "Order tidak ditemukan" },
+        { status: 404 }
       );
     }
 
-    // ✅ VALIDASI CANCEL
-    if (body.status === "CANCELLED") {
-      if (
-        existingOrder.status !==
-        "PENDING"
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Pesanan yang sudah diproses tidak dapat dibatalkan",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
+    // VALIDASI CANCEL
+    if (body.status === "CANCELLED" && existingOrder.status !== "PENDING") {
+      return NextResponse.json(
+        { error: "Pesanan yang sudah diproses tidak dapat dibatalkan" },
+        { status: 400 }
+      );
     }
 
-    // ✅ DYNAMIC UPDATE
+    // DYNAMIC UPDATE MAP
     const updateData: any = {};
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.paymentStatus !== undefined) updateData.paymentStatus = body.paymentStatus;
+    if (body.trackingNumber !== undefined) updateData.trackingNumber = body.trackingNumber;
+    if (body.courier !== undefined) updateData.courier = body.courier;
+    if (body.shippingService !== undefined) updateData.shippingService = body.shippingService;
+    if (body.shippingEtd !== undefined) updateData.shippingEtd = body.shippingEtd;
+    if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.paymentProofUrl !== undefined) updateData.paymentProofUrl = body.paymentProofUrl;
+    if (body.snapToken !== undefined) updateData.snapToken = body.snapToken;
 
-    if (body.status !== undefined)
-      updateData.status =
-        body.status;
-
-    if (
-      body.paymentStatus !==
-      undefined
-    )
-      updateData.paymentStatus =
-        body.paymentStatus;
-
-    if (
-      body.trackingNumber !==
-      undefined
-    )
-      updateData.trackingNumber =
-        body.trackingNumber;
-
-    if (body.courier !== undefined)
-      updateData.courier =
-        body.courier;
-
-    // ✅ TAMBAHAN
-    if (
-      body.shippingService !==
-      undefined
-    )
-      updateData.shippingService =
-        body.shippingService;
-
-    if (
-      body.shippingEtd !==
-      undefined
-    )
-      updateData.shippingEtd =
-        body.shippingEtd;
-
-    if (body.notes !== undefined)
-      updateData.notes =
-        body.notes;
-
-    if (
-      body.paymentProofUrl !==
-      undefined
-    )
-      updateData.paymentProofUrl =
-        body.paymentProofUrl;
-
-    if (
-      body.snapToken !== undefined
-    )
-      updateData.snapToken =
-        body.snapToken;
-
-    // ✅ UPDATE BERDASARKAN orderNumber
-    const updatedOrder =
-      await prisma.order.update({
-        where: {
-          orderNumber: id,
-        },
-
-        data: updateData,
-
-        include: {
-          user: true,
-
-          items: {
-            include: {
-              product: true,
-              review: true,
-            },
+    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE (Bukan parameter mentah)
+    const updatedOrder = await prisma.order.update({
+      where: {
+        id: existingOrder.id, // 🏆 DIUBAH KE ID ASLI AGAR AMAN
+      },
+      data: updateData,
+      include: {
+        user: true,
+        items: {
+          include: {
+            product: true,
+            review: true,
           },
         },
-      });
-
-    // ✅ REVALIDATE
-    revalidatePath(
-      "/customer/orders"
-    );
-
-    revalidatePath(
-      `/customer/orders/${id}`
-    );
-
-    return NextResponse.json(
-      formatOrderResponse(
-        updatedOrder
-      )
-    );
-  } catch (error) {
-    console.error(
-      "Error pada PATCH Order:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Gagal update order",
       },
-      {
-        status: 500,
-      }
+    });
+
+    // ================= LOGIKA TRIGGER NOTIFIKASI ADMIN =================
+    const customerName = updatedOrder.user?.name || updatedOrder.shippingRecipient || "Pelanggan";
+
+    // KONDISI A: Membayar Pesanan (Diperlonggar: jika body meminta PAID, langsung buat notifikasi tanpa validasi ketat status lama)
+    if (body.paymentStatus === "PAID") {
+      console.log(`🚀 Trigger Notifikasi Pembayaran untuk Order #${updatedOrder.orderNumber}`);
+      await prisma.notification.create({
+        data: {
+          userId: null, 
+          title: "Pembayaran Diterima! 💳",
+          message: `Pesanan #${updatedOrder.orderNumber} milik ${customerName} telah lunas sebesar Rp ${Number(updatedOrder.totalAmount).toLocaleString('id-ID')} dan siap diproses.`,
+          type: "PAYMENT", 
+          link: `/admin/orders/${updatedOrder.orderNumber}`, 
+        },
+      });
+    }
+
+    // KONDISI B: Menyelesaikan Pesanan
+    if (body.status === "DELIVERED" && existingOrder.status !== "DELIVERED") {
+      await prisma.notification.create({
+        data: {
+          userId: null,
+          title: "Pesanan Telah Selesai! ✅",
+          message: `Pesanan #${updatedOrder.orderNumber} telah diterima dan diselesaikan oleh ${customerName}.`,
+          type: "ORDER",
+          link: `/admin/orders/${updatedOrder.orderNumber}`,
+        },
+      });
+    }
+    // ===================================================================
+
+    // REVALIDATE CACHE NEXT.JS
+    revalidatePath("/customer/orders");
+    revalidatePath(`/customer/orders/${id}`);
+    revalidatePath("/admin/orders");
+
+    return NextResponse.json(formatOrderResponse(updatedOrder));
+  } catch (error) {
+    console.error("Error pada PATCH Order:", error);
+    return NextResponse.json(
+      { error: "Gagal update order" },
+      { status: 500 }
     );
   }
 }
@@ -289,32 +242,23 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    // ✅ DELETE BERDASARKAN orderNumber
+    // DELETE BERDASARKAN orderNumber
     await prisma.order.delete({
       where: {
         orderNumber: id,
       },
     });
 
-    revalidatePath(
-      "/customer/orders"
-    );
+    revalidatePath("/customer/orders");
 
     return NextResponse.json({
-      message:
-        "Order berhasil dihapus",
+      message: "Order berhasil dihapus",
     });
   } catch (error) {
     console.error(error);
-
     return NextResponse.json(
-      {
-        error:
-          "Gagal menghapus order",
-      },
-      {
-        status: 500,
-      }
+      { error: "Gagal menghapus order" },
+      { status: 500 }
     );
   }
 }

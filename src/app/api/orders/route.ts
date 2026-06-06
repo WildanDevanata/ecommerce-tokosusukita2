@@ -123,20 +123,28 @@ export async function POST(req: Request) {
     const body = await req.json();
     const orderNumber = `ORD-${Date.now()}`;
 
+    const isMidtrans = body.paymentMethod === 'MIDTRANS';
+    const initialPaymentStatus = body.paymentStatus || 'PENDING';
+    
+    // 🧠 LOGIKA SKIP STATUS: Jika menggunakan Midtrans dan status pembayarannya langsung PAID,
+    // maka status order langsung kita set 'PROCESSING' (Diproses), jika tidak tetap status asal atau 'PENDING'
+    const initialOrderStatus = (isMidtrans && initialPaymentStatus === 'PAID') 
+      ? 'PROCESSING' 
+      : (body.status || 'PENDING');
+
     // ================= CREATE ORDER =================
     let order = await prisma.order.create({
       data: {
         orderNumber,
         totalAmount: body.totalAmount,
         shippingCost: body.shippingCost || 0,
-        paymentStatus: body.paymentStatus || 'PENDING',
-        status: body.status || 'PENDING',
+        paymentStatus: initialPaymentStatus,
+        status: initialOrderStatus, // Menggunakan status yang sudah diskip jika lunas
         trackingNumber: body.trackingNumber || null,
         courier: body.courier || null,
         shippingService: body.shippingService || null,
         shippingEtd: body.shippingEtd || null,
         notes: body.notes || null,
-        // ❌paymentProofUrl TELAH DIHAPUS DARI SINI KARENA TIDAK ADA DI MODEL ORDER DB Anda
         
         user: {
           connect: {
@@ -167,9 +175,8 @@ export async function POST(req: Request) {
             {
               userId: body.userId,
               method: body.paymentMethod || 'MIDTRANS',
-              status: body.paymentStatus || 'PENDING',
+              status: initialPaymentStatus,
               amount: body.totalAmount,
-              // Jika dari frontend mengirimkan bukti transfer manual, masukkan ke sini:
               paymentProof: body.paymentProofUrl || null 
             }
           ]
@@ -187,10 +194,46 @@ export async function POST(req: Request) {
       },
     });
 
+    // ================= TRIGGER NOTIFIKASI ADMIN =================
+    try {
+      const customerName = order.user?.name || body.shippingRecipient || "Pelanggan";
+      const formattedAmount = Number(order.totalAmount).toLocaleString('id-ID');
+
+      // 1. Notifikasi Pesanan Masuk
+      await prisma.notification.create({
+        data: {
+          userId: null,
+          title: "Pesanan Baru Masuk 🍼",
+          message: `User ${customerName} telah membuat pesanan baru #${order.orderNumber} senilai Rp ${formattedAmount}.`,
+          type: "ORDER",
+          link: `/admin/orders`,
+        },
+      });
+
+      // 2. Notifikasi Pembayaran Diterima (Otomatis jika langsung PAID)
+      if (initialPaymentStatus === 'PAID') {
+        await prisma.notification.create({
+          data: {
+            userId: null,
+            title: "Pembayaran Diterima! 💳",
+            message: `Pesanan #${order.orderNumber} milik ${customerName} telah lunas sebesar Rp ${formattedAmount} (Midtrans) dan otomatis masuk ke status Diproses.`,
+            type: "PAYMENT",
+            link: `/admin/orders`,
+          },
+        });
+        console.log(`✅ Sukses memicu notifikasi PAYMENT langsung dari pembuatan order.`);
+      }
+
+      console.log(`✅ Sukses memicu notifikasi admin untuk order #${order.orderNumber}`);
+    } catch (notifError) {
+      console.error("❌ Gagal menyimpan data log notifikasi ke DB:", notifError);
+    }
+    // ===============================================================
+
     let snapToken = null;
 
     // ================= MIDTRANS INTEGRATION =================
-    if (body.paymentMethod === 'MIDTRANS') {
+    if (isMidtrans) {
       const snap = new midtransClient.Snap({
         isProduction: false,
         serverKey: process.env.MIDTRANS_SERVER_KEY || '',

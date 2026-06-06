@@ -12,7 +12,7 @@ const formatOrderResponse = (order: any) => ({
 
   totalAmount: order.totalAmount,
   shippingCost: order.shippingCost,
-
+  payments: order.payments || [],
   status: order.status,
   paymentStatus: order.paymentStatus,
 
@@ -82,7 +82,6 @@ const formatOrderResponse = (order: any) => ({
   },
 });
 
-// ================= GET =================
 export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -90,9 +89,6 @@ export async function GET(
   try {
     const { id } = await context.params;
     
-    console.log("=== API ORDERS DEBUG ===");
-    console.log("Mencari Order dengan ID/OrderNumber:", id);
-
     const order = await prisma.order.findFirst({
       where: {
         OR: [
@@ -103,19 +99,19 @@ export async function GET(
       include: {
         user: true,
         items: { include: { product: true, review: true } },
+        payments: true, // 🔥 TAMBAHKAN INI AGAR DATA PEMBAYARAN TERIKUT
       },
     });
 
     if (!order) {
-      console.log(`❌ Order dengan ID ${id} TIDAK DITEMUKAN di database.`);
       return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
     }
 
-    console.log(`✅ Order ditemukan! Nomor Order: ${order.orderNumber}`);
+    // Jika Anda punya fungsi formatOrderResponse, pastikan 
+    // fungsi tersebut juga menyertakan data payments ke dalam return object-nya
     return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
-    console.error("💥 CRASH PADA GET API ORDERS:", error);
-    return NextResponse.json({ error: "Gagal mengambil detail order" }, { status: 500 });
+    // ...
   }
 }
 

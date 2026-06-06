@@ -13,6 +13,8 @@ export default async function Page() {
           product: true,
         },
       },
+      // 🔥 WAJIB TAMBAHKAN INI agar data payment bisa diakses
+      payments: true, 
     },
   });
 
@@ -24,16 +26,19 @@ export default async function Page() {
     totalAmount: o.totalAmount,
     status: o.status,
     paymentStatus: o.paymentStatus,
-    paymentMethod: o.paymentMethod,
+    
+    // 🔥 PERBAIKAN: Ambil dari relasi payments, fallback ke manual jika perlu
+    paymentMethod: o.payments?.[0]?.method || 'TRANSFER',
+    paymentProof: o.payments?.[0]?.paymentProof || o.paymentProofUrl || null,
+    
     trackingNumber: o.trackingNumber,
     courier: o.courier,
     
-    // Perbaikan: Ubah objek Date menjadi string ISO agar aman dilempar ke 'use client'
     createdAt: o.createdAt.toISOString(),
 
     items: o.items.map((i) => ({
       id: i.id,
-      productName: i.product?.name || 'Produk Tidak Diketahui', // Pencegahan jika produk null
+      productName: i.product?.name || 'Produk Tidak Diketahui',
       quantity: i.quantity,
       price: i.price,
       productEmoji: '📦',

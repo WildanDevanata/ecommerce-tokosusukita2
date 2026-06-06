@@ -100,31 +100,29 @@ export default function OrdersClient({
     }
   };
 
-  const handleOpenModal = async (order: any) => {
-    setLoadingDetail(order.id);
-    try {
-      const res = await fetch(`/api/orders/${order.orderNumber}`);
-      if (!res.ok) throw new Error('Gagal memuat detail pesanan');
-      
-      const fullOrderData = await res.json();
-      
-      // Sanitasi data detail dari API sebelum masuk state modal
-      const formattedData = validateAndFormatStatus(fullOrderData);
-      
-      setSelectedOrder(formattedData);
-      setTrackingInput(formattedData.trackingNumber || '');
-      setCourierInput(formattedData.courier || 'JNE');
-    } catch (error) {
-      console.error(error);
-      const fallbackOrder = validateAndFormatStatus({ ...order });
-      setSelectedOrder(fallbackOrder);
-      setTrackingInput(order.trackingNumber || '');
-      setCourierInput(order.courier || 'JNE');
-    } finally {
-      setLoadingDetail(null);
-    }
-  };
-
+const handleOpenModal = async (order: any) => {
+  setLoadingDetail(order.id);
+  try {
+    const res = await fetch(`/api/orders/${order.orderNumber}`);
+    if (!res.ok) throw new Error('Gagal memuat detail pesanan');
+    
+    const fullOrderData = await res.json();
+    
+    // Kita buat variabel yang menggabungkan data order dengan data pembayaran
+    const formattedData = {
+      ...fullOrderData,
+      // Mengambil metode dari relasi payments index ke-0
+      derivedMethod: fullOrderData.payments?.[0]?.method || 'TRANSFER',
+      derivedProof: fullOrderData.payments?.[0]?.paymentProof || fullOrderData.paymentProofUrl || null,
+    };
+    
+    setSelectedOrder(formattedData);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    setLoadingDetail(null);
+  }
+};
   const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     setLoadingStatus(status);
     try {
@@ -646,22 +644,38 @@ export default function OrdersClient({
                 )}
               </div>
 
-              {/* PAYMENT INFO */}
-              <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                <p className="text-sm font-semibold text-gray-700 mb-4">Informasi Pembayaran</p>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Metode Pembayaran</span>
-                    <span className="text-sm font-semibold text-gray-800 uppercase">{selectedOrder.paymentMethod || '-'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Status Pembayaran</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(selectedOrder.paymentStatus)}`}>
-                      {getPaymentStatusLabel(selectedOrder.paymentStatus)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+{/* PAYMENT INFO */}
+<div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+  <p className="text-sm font-semibold text-gray-700 mb-4">Informasi Pembayaran</p>
+  <div className="space-y-3">
+    <div className="flex justify-between items-center">
+      <span className="text-sm text-gray-500">Metode Pembayaran</span>
+      {/* Menggunakan data yang sudah kita petakan tadi */}
+      <span className="text-sm font-semibold text-gray-800 uppercase">
+        {selectedOrder.derivedMethod || 'TRANSFER'}
+      </span>
+    </div>
+    
+    <div className="flex justify-between items-center">
+      <span className="text-sm text-gray-500">Status Pembayaran</span>
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(selectedOrder.paymentStatus)}`}>
+        {getPaymentStatusLabel(selectedOrder.paymentStatus)}
+      </span>
+    </div>
+
+    {/* Jika ada gambar, tampilkan di sini */}
+    {selectedOrder.paymentProof && (
+      <div className="mt-4">
+        <p className="text-xs text-gray-500 mb-2">Bukti Transfer:</p>
+        <img 
+          src={selectedOrder.paymentProof} 
+          alt="Bukti" 
+          className="w-full h-32 object-cover rounded-xl border"
+        />
+      </div>
+    )}
+  </div>
+</div>
 
               {/* LIST ITEMS & REVIEWS */}
               <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">

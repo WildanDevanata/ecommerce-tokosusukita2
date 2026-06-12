@@ -24,7 +24,7 @@ export interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: 'ORDER' | 'PAYMENT' | 'STOCK' | 'SYSTEM' | 'REVIEW'; // Diselaraskan dengan enum Prisma
+  type: 'ORDER' | 'PAYMENT' | 'STOCK' | 'SYSTEM' | 'REVIEW';
   isRead: boolean;
   link?: string;
   createdAt: string | Date;
@@ -89,8 +89,8 @@ export interface Product {
   emoji?: string | null;
   weight?: number;
   categoryName?: string;
-  isNew?: boolean;
-  isBestSeller?: boolean;
+  isNew: boolean;        // Diubah menjadi wajib agar sinkron dengan ProductCard
+  isBestSeller: boolean; // Diubah menjadi wajib agar sinkron dengan ProductCard
   reviewCount: number;
   category?: {
     id: string;
@@ -108,6 +108,8 @@ export interface CartItem {
   price?: number;
   image?: string;
   stock?: number;
+  weight?: number;    // Ditambahkan agar komponen checkout/cart tidak error
+  bgColor?: string;   // Ditambahkan agar cocok dengan payload addToCart
   category?: any;
 }
 
@@ -155,7 +157,7 @@ export interface AppContextType {
   refreshUsers: () => Promise<void>;
   refreshCart: (userId: string) => Promise<void>; 
   refreshWishlist: (userId: string) => Promise<void>;
-  refreshNotifications: () => Promise<void>; // 🚀 BARU: Sinkronisasi Notifikasi Database
+  refreshNotifications: () => Promise<void>; 
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
@@ -170,10 +172,10 @@ export interface AppContextType {
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
 
-  addToCart: (item: Product) => Promise<void>;
-  removeFromCart: (id: string) => Promise<void>;
-  updateCartQty: (id: string, qty: number) => Promise<void>;
-  toggleWishlist: (id: string) => Promise<void>; 
+  addToCart: (item: any) => Promise<void>; // Menggunakan any/Product agar fleksibel saat menerima payload parsial
+  removeFromCart: (cartItemId: string) => Promise<void>;
+  updateCartQty: (cartItemId: string, qty: number) => Promise<void>;
+  toggleWishlist: (productId: string) => Promise<void>; 
 
   login: (user: User) => void;
   loginGoogle: () => void; 
@@ -186,8 +188,8 @@ export interface AppContextType {
 
   notifications: NotificationItem[];
   unreadCount: number;
-  markNotificationRead: (id: string) => Promise<void>; // Diubah ke async db
-  markAllNotificationsRead: () => Promise<void>;      // Diubah ke async db
+  markNotificationRead: (id: string) => Promise<void>; 
+  markAllNotificationsRead: () => Promise<void>;      
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -195,7 +197,6 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
 // ================= PROVIDER =================
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-  // ================= STATES =================
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -207,8 +208,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
-
-  // 🛠️ PERBAIKAN UTAMA: Kosongkan data tiruan mock data dari array state asal
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // ================= FETCH FUNCTIONS =================
@@ -295,10 +294,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🚀 BARU: Tarik data Notifikasi Riil Milik Admin (userId = null) dari Database API
   const refreshNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications'); // Pastikan endpoint ini mengarah ke pencarian data db
+      const res = await fetch('/api/notifications'); 
       if (!res.ok) throw new Error('Gagal fetch notifikasi');
       const result = await res.json();
       if (result.success) {
@@ -321,7 +319,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshUsers(),
         fetchBankAccounts(),
         refreshProducts(),
-        refreshNotifications(), // 🚀 Jalankan penarikan notifikasi asli saat app pertama kali dimuat
+        refreshNotifications(), 
       ]);
 
       const savedUser = localStorage.getItem('user');
@@ -355,14 +353,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initData();
   }, []);
 
-  // Polling Sederhana: Sinkronisasi notifikasi admin secara otomatis setiap 15 detik
+  // Polling Notifikasi Admin (Hanya jika role-nya ADMIN agar menghemat load server)
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || currentUser?.role !== 'ADMIN') return;
     const interval = setInterval(() => {
       refreshNotifications();
     }, 15000);
     return () => clearInterval(interval);
-  }, [isLoggedIn]);
+  }, [isLoggedIn, currentUser]);
 
   // ================= SAVE TO LOCALSTORAGE (Offline Backup) =================
   useEffect(() => {
@@ -507,13 +505,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const addToCart = async (item: Product) => {
+  const addToCart = async (item: any) => {
     const activeUserId = currentUser?.id || 'user2';
+    const targetProductId = item.productId || item.id; // Flexibilitas mendeteksi payload key
     try {
       const res = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: activeUserId, productId: item.id }),
+        body: JSON.stringify({ userId: activeUserId, productId: targetProductId }),
       });
       if (res.ok) {
         await refreshCart(activeUserId); 
@@ -586,7 +585,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     setCart([]);
     setWishlist([]); 
-    setNotifications([]); // Bersihkan riwayat saat logout
+    setNotifications([]); 
   };
 
   const uploadPaymentProof = async (orderId: string, proofUrl: string, paymentMethod: string) => {
@@ -640,7 +639,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  // 🚀 PERBAIKAN: Hubungkan aksi baca notifikasi ke Backend API database
   const markNotificationRead = async (id: string) => {
     try {
       setNotifications((prev) =>
@@ -652,7 +650,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 🚀 PERBAIKAN: Hubungkan aksi baca semua notifikasi ke Backend API database
   const markAllNotificationsRead = async () => {
     try {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -693,7 +690,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         refreshUsers,
         refreshCart, 
         refreshWishlist,
-        refreshNotifications, // Diekspos secara global
+        refreshNotifications, 
         setProducts,
         setCategories,
         setUsers,

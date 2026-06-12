@@ -4,7 +4,7 @@ export default function ContactSidebar() {
   const contactInfo = [
     { icon: <MapPin className="w-5 h-5 text-blue-600" />, label: 'Alamat', value: 'Jl. Pahlawan No.15a, Tambran, Kec. Magetan, Kabupaten Magetan, Jawa Timur 63318' },
     { icon: <Phone className="w-5 h-5 text-green-600" />, label: 'Telepon / WhatsApp', value: '0813-5703-7350' },
-    { icon: <Mail className="w-5 h-5 text-orange-600" />, label: 'Email', value: 'info@tokosusukita.com' },
+    { icon: <Mail className="w-5 h-5 text-orange-600" />, label: 'Email', value: 'wildanryzki99@gmail.com' },
   ];
 
   return (

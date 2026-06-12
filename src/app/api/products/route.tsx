@@ -5,70 +5,83 @@ const prisma = new PrismaClient();
 
 // ================= GET PRODUCTS =================
 
-export async function GET(
-  request: Request
-) {
+export async function GET(request: Request) {
   try {
-    const { searchParams } =
-      new URL(request.url);
+    const { searchParams } = new URL(request.url);
 
-    const category =
-      searchParams.get(
-        'category'
-      );
+    const category = searchParams.get('category');
+    const isAdmin = searchParams.get('admin') === 'true';
+    
+    // Tambahkan flag khusus jika dipanggil dari halaman depan / komponen NewProducts
+    const isNewArrival = searchParams.get('newArrival') === 'true';
 
-    // cek apakah request dari admin
-    const isAdmin =
-      searchParams.get(
-        'admin'
-      ) === 'true';
+    const products = await prisma.product.findMany({
+      where: {
+        // customer hanya lihat produk aktif
+        ...(isAdmin ? {} : { isActive: true }),
 
-    const products =
-      await prisma.product.findMany({
-        where: {
-          // customer hanya lihat produk aktif
-          ...(isAdmin
-            ? {}
-            : {
-                isActive: true,
-              }),
-
-          // filter kategori
-          ...(category
-            ? {
-                category: {
-                  slug: category,
-                },
-              }
-            : {}),
-        },
-
-        include: {
-          category: true,
-        },
-
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-    return NextResponse.json(
-      products
-    );
-  } catch (error) {
-    console.error(
-      'GET PRODUCTS ERROR:',
-      error
-    );
-
-    return NextResponse.json(
-      {
-        message:
-          'Gagal mengambil produk',
+        // filter kategori
+        ...(category
+          ? {
+              category: {
+                slug: category,
+              },
+            }
+          : {}),
       },
-      {
-        status: 500,
-      }
+      include: {
+        category: true,
+        reviews: true, // 🚀 Ambil data review pembeli
+        orderItems: {  // 🚀 Ambil data transaksi item untuk hitung total terjual dinamis
+          where: {
+            order: {
+              paymentStatus: 'PAID', // Hanya hitung jika order sudah lunas/dibayar
+            },
+          },
+          select: {
+            quantity: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      // Jika request dari NewProducts, batasi hanya ambil maksimal 4 item
+      ...(isNewArrival ? { take: 4 } : {}),
+    });
+
+    //Format ulang data agar menyertakan rating desimal & total terjual riil pembeli
+    const formattedProducts = products.map((product) => {
+      // 1. Hitung rata-rata rating desimal
+      const totalRating = product.reviews.reduce((acc, rev) => acc + rev.rating, 0);
+      const avgRating = product.reviews.length 
+        ? parseFloat((totalRating / product.reviews.length).toFixed(1)) 
+        : 0;
+
+      // 2. Hitung total kuantitas produk yang terjual dari order riil pembeli
+      const totalSoldReal = product.orderItems.reduce((acc, item) => acc + item.quantity, 0);
+
+      // Destructuring untuk memisahkan internal relations (agar response bersih)
+      const { reviews, orderItems, category: catData, ...restProduct } = product;
+
+      return {
+        ...restProduct,
+        categoryName: catData?.name || '',
+        category: catData,
+        rating: avgRating,
+        reviewCount: reviews.length,
+        soldCount: totalSoldReal, // Mengganti total sold dengan kalkulasi riil pesanan pembeli
+        isNew: product.isNew ?? true, // Fallback jika field belum ada
+        isBestSeller: product.isBestSeller ?? false,
+      };
+    });
+
+    return NextResponse.json(formattedProducts);
+  } catch (error) {
+    console.error('GET PRODUCTS ERROR:', error);
+    return NextResponse.json(
+      { message: 'Gagal mengambil produk' },
+      { status: 500 }
     );
   }
 }

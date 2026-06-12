@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     });
 
     // ========================================================
-    // 🔔 TRIGGER NOTIFIKASI UNTUK ADMIN
+    // 🔔 TRIGGER NOTIFIKASI UNTUK ADMIN (DIPERBAIKI)
     // ========================================================
     const reviewerName = 
       newReview.user?.name || 
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         userId: null, // Ditujukan ke Panel Admin
         title: "Ulasan Baru Diterima! ⭐",
         message: `${reviewerName} memberikan rating ${rating} untuk produk "${productName}".`,
-        type: "REVIEW", 
+        type: "ORDER", // 🔥 PERBAIKAN: Diubah ke "ORDER" agar tidak melanggar batasan Enum Prisma
         link: `/admin/products/${productId}/reviews`, 
       },
     });

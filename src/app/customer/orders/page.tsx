@@ -56,7 +56,7 @@ export default function OrdersPage() {
   const [selectedOrderForReview, setSelectedOrderForReview] = useState<any>(null);
   const [reviewData, setReviewData] = useState<{ [orderItemId: string]: ReviewItemState }>({});
 
-  // 💡 STATE BARU UNTUK SEAMLESS FETCHING DETAIL RIWAYAT ULASAN
+  // STATE UNTUK SEAMLESS FETCHING DETAIL RIWAYAT ULASAN
   const [isViewReviewModalOpen, setIsViewReviewModalOpen] = useState(false);
   const [selectedOrderForViewReview, setSelectedOrderForViewReview] = useState<any>(null);
   const [viewReviewItems, setViewReviewItems] = useState<any[]>([]);
@@ -71,7 +71,7 @@ export default function OrdersPage() {
     };
   }, [reviewData]);
 
-  // 💡 EFFECT UNTUK OTOMATIS AMBIL DATA REVIEW KETIKA MODAL DIALURKAN
+  // EFFECT UNTUK OTOMATIS AMBIL DATA REVIEW KETIKA MODAL DIALURKAN
   useEffect(() => {
     const fetchOrderReviews = async (orderId: string) => {
       setIsLoadingViewReview(true);
@@ -105,23 +105,21 @@ export default function OrdersPage() {
   
   const filteredOrders = myOrders.filter((order: any) => {
     let matchesTab = false;
+    
     if (activeTab === 'ALL') {
       matchesTab = true;
+    } else if (activeTab === 'DELIVERED') {
+      // Di tab 'Selesai', hanya tampilkan yang sudah DELIVERED dan BELUM diulas seluruhnya
+      const isAllItemsReviewed = order.status === 'REVIEWED' || order.items?.every((item: any) => item.isReviewed || item.review) || false;
+      matchesTab = order.status === 'DELIVERED' && !isAllItemsReviewed;
     } else if (activeTab === 'REVIEW') {
-  matchesTab =
-    order.status === 'DELIVERED' ||
-    order.status === 'REVIEWED';
-} else {
+      matchesTab = order.status === 'DELIVERED' || order.status === 'REVIEWED';
+    } else {
       matchesTab = order.status === activeTab;
     }
 
     if (activeTab === 'REVIEW' && matchesTab) {
-      const isAllItemsReviewed =
-  order.status === 'REVIEWED' ||
-  order.items?.every(
-    (item: any) =>
-      item.isReviewed === true
-  ) || false;
+      const isAllItemsReviewed = order.status === 'REVIEWED' || order.items?.every((item: any) => item.isReviewed || item.review) || false;
       matchesTab = activeReviewSubTab === 'NOT_REVIEWED' ? !isAllItemsReviewed : isAllItemsReviewed;
     }
 
@@ -182,11 +180,9 @@ export default function OrdersPage() {
     setIsDeliveredModalOpen(true);
   };
 
-const confirmDeliveredOrder = async () => {
-    // Cari data object order lengkap berdasarkan selectedOrderId yang disimpan saat tombol diklik
+  const confirmDeliveredOrder = async () => {
     const currentOrder = orders.find((o: any) => o.id === selectedOrderId);
     
-    // Keamanan: Jika order tidak ditemukan atau tidak memiliki orderNumber, batalkan proses
     if (!currentOrder || !currentOrder.orderNumber) {
       alert("Data pesanan tidak valid.");
       return;
@@ -196,28 +192,24 @@ const confirmDeliveredOrder = async () => {
       setDeliveringId(selectedOrderId);
       setIsDeliveredModalOpen(false);
 
-      // 🎯 SOLUSI: Tembak ke API Route dynamic menggunakan orderNumber, bukan internal database ID
       const res = await fetch(`/api/orders/${currentOrder.orderNumber}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: 'DELIVERED', // Mengirim payload status baru untuk diperbarui dynamic oleh backend
+          status: 'DELIVERED',
         }),
       });
 
       const json = await res.json();
 
       if (res.ok) {
-        // Update state global AppContext menggunakan internal ID agar UI berubah secara realtime
         setOrders((prev: any[]) => 
           prev.map(o => o.id === selectedOrderId ? { ...o, status: 'DELIVERED' } : o)
         );
         
         alert('Terima kasih! Pesanan diselesaikan, silakan beri ulasan terbaik Anda.');
-        
-        // Pindahkan user secara seamless ke filter tab review -> belum dinilai
         setActiveTab('REVIEW');
         setActiveReviewSubTab('NOT_REVIEWED');
       } else {
@@ -236,10 +228,9 @@ const confirmDeliveredOrder = async () => {
   const handleOpenReviewModal = (order: any) => {
     setSelectedOrderForReview(order);
     
-    // Inisialisasi state review default kosong untuk setiap item di order tersebut
     const initialStates: { [key: string]: ReviewItemState } = {};
     order.items?.forEach((item: any) => {
-      if (!item.review) {
+      if (!item.review && !item.isReviewed) {
         initialStates[item.id] = {
           rating: 5,
           comment: '',
@@ -291,93 +282,108 @@ const confirmDeliveredOrder = async () => {
   };
 
   const handleSubmitAllReviews = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrderForReview) return;
+  e.preventDefault();
+  if (!selectedOrderForReview) return;
 
-    try {
-      setIsSubmittingReview(true);
-      const updatedItems = [...selectedOrderForReview.items];
+  try {
+    setIsSubmittingReview(true);
+    
+    // Pastikan semua item mempertahankan status review aslinya (baik yang lama maupun yang baru dicek)
+    const updatedItems = selectedOrderForReview.items.map((item: any) => ({
+      ...item,
+      isReviewed: item.isReviewed || !!item.review // Set basis data awal
+    }));
 
-      // 1. Loop untuk mengirim review setiap produk
-      for (const item of updatedItems) {
-        if (item.review) continue;
+    // 1. Loop untuk mengirim review setiap produk yang BELUM diulas
+    for (const item of updatedItems) {
+      // Jika sudah diulas sebelumnya, dilewati tapi status di updatedItems tetap true
+      if (item.review || item.isReviewed) {
+        item.isReviewed = true; 
+        continue;
+      }
 
-        const currentItemReview = reviewData[item.id];
-        let imageUrl = '';
+      const currentItemReview = reviewData[item.id];
+      let imageUrl = '';
 
-        if (currentItemReview?.imageFile) {
-          const formData = new FormData();
-          formData.append('file', currentItemReview.imageFile);
-          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json();
-            imageUrl = uploadData.url;
-          }
-        }
-
-        const res = await fetch('/api/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderItemId: item.id,
-            productId: item.productId,
-            userId: currentUser?.id,
-            rating: currentItemReview?.rating || 5,
-            comment: currentItemReview?.comment || '',
-            image: imageUrl || null
-          }),
-        });
-
-        if (res.ok) {
-          item.isReviewed = true;
-          item.review = true;
+      // Upload gambar jika ada
+      if (currentItemReview?.imageFile) {
+        const formData = new FormData();
+        formData.append('file', currentItemReview.imageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          imageUrl = uploadData.url;
         }
       }
 
-      // 2. Cek apakah SEMUA item di dalam pesanan ini sudah diulas
-      const allReviewed = updatedItems.every((item: any) => item.isReviewed);
+      // Kirim data review ke API
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: item.id,
+          productId: item.productId,
+          userId: currentUser?.id,
+          rating: currentItemReview?.rating || 5,
+          comment: currentItemReview?.comment || '',
+          image: imageUrl || null
+        }),
+      });
 
-      // ✅ 3. UPDATE STATUS ORDER KE DATABASE (Jika semua item selesai diulas)
-      if (allReviewed) {
-        const resOrder = await fetch(`/api/orders/${selectedOrderForReview.orderNumber}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'REVIEWED', // Mengubah status menjadi REVIEWED di database
-          }),
-        });
-        
-        if (!resOrder.ok) {
-          console.error("Gagal memperbarui status order ke REVIEWED di server");
-        }
+      if (res.ok) {
+        const reviewResult = await res.json();
+        item.isReviewed = true;
+        item.review = reviewResult.data || true; // Simpan object review object jika API mengembalikannya
+      } else {
+        throw new Error(`Gagal mengirim ulasan untuk produk: ${item.productName || item.id}`);
       }
-
-      // ✅ 4. SINKRONISASI STATE LOKAL APCCONTEXT (Perbaikan Utama)
-      setOrders((prev: any[]) =>
-        prev.map((o) =>
-          o.id === selectedOrderForReview.id
-            ? {
-                ...o,
-                items: updatedItems,
-                status: allReviewed ? 'REVIEWED' : o.status, // State lokal ikut berubah ke REVIEWED
-              }
-            : o
-        )
-      );
-      
-      alert('Terima kasih! Ulasan berhasil disimpan.');
-      setIsReviewModalOpen(false);
-      
-      // ✅ 5. Otomatis pindahkan tab active ke "Sudah Dinilai"
-      setActiveTab('REVIEW');
-      setActiveReviewSubTab('REVIEWED');
-    } catch (error) {
-      console.error(error);
-      alert('Gagal menyimpan ulasan');
-    } finally {
-      setIsSubmittingReview(false);
     }
-  };
+
+    // 2. Cek mutlak apakah SEMUA item dalam pesanan ini VALID sudah diulas
+    const allReviewed = updatedItems.every((item: any) => item.isReviewed === true);
+
+    // 3. UPDATE STATUS ORDER KE DATABASE (Hanya jika seluruh item sukses diulas)
+    if (allReviewed) {
+      const resOrder = await fetch(`/api/orders/${selectedOrderForReview.orderNumber}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'REVIEWED',
+        }),
+      });
+      
+      if (!resOrder.ok) {
+        console.error("Gagal memperbarui status order ke REVIEWED di server");
+      }
+    }
+
+    // 4. SINKRONISASI STATE LOKAL APCCONTEXT (Akurat & Real-time)
+    setOrders((prev: any[]) =>
+      prev.map((o) =>
+        o.id === selectedOrderForReview.id
+          ? {
+              ...o,
+              items: updatedItems,
+              status: allReviewed ? 'REVIEWED' : o.status,
+            }
+          : o
+      )
+    );
+    
+    alert('Terima kasih! Ulasan berhasil disimpan.');
+    setIsReviewModalOpen(false);
+    
+    // 5. Otomatis pindahkan tab active ke "Sudah Dinilai"
+    if (setActiveTab) setActiveTab('REVIEW');
+    if (setActiveReviewSubTab) setActiveReviewSubTab('REVIEWED');
+
+  } catch (error: any) {
+    console.error(error);
+    alert(error.message || 'Gagal menyimpan ulasan');
+  } finally {
+    setIsSubmittingReview(false);
+  }
+};
 
   return (
     <>
@@ -424,8 +430,11 @@ const confirmDeliveredOrder = async () => {
                   let matchesTab = false;
                   if (tab.id === 'ALL') {
                     matchesTab = true;
+                  } else if (tab.id === 'DELIVERED') {
+                    const isAllItemsReviewed = o.status === 'REVIEWED' || o.items?.every((item: any) => item.isReviewed || item.review) || false;
+                    matchesTab = o.status === 'DELIVERED' && !isAllItemsReviewed;
                   } else if (tab.id === 'REVIEW') {
-                    matchesTab = o.status === 'DELIVERED';
+                    matchesTab = o.status === 'DELIVERED' || o.status === 'REVIEWED';
                   } else {
                     matchesTab = o.status === tab.id;
                   }
@@ -509,6 +518,10 @@ const confirmDeliveredOrder = async () => {
           ) : (
             <div className="space-y-5">
               {filteredOrders.map((order: any) => {
+                // Evaluasi status dinamis untuk tampilan badge lokal
+                const isAllItemsReviewed = order.status === 'REVIEWED' || order.items?.every((item: any) => item.isReviewed || item.review) || false;
+                const displayStatus = (order.status === 'DELIVERED' && isAllItemsReviewed) ? 'REVIEWED' : order.status;
+
                 return (
                   <div key={order.id} className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
                     
@@ -524,8 +537,8 @@ const confirmDeliveredOrder = async () => {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getOrderStatusColor(order.status)}`}>
-                          {getOrderStatusLabel(order.status)}
+                        <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getOrderStatusColor(displayStatus)}`}>
+                          {getOrderStatusLabel(displayStatus)}
                         </span>
                         <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
                           {getPaymentStatusLabel(order.paymentStatus)}
@@ -555,8 +568,8 @@ const confirmDeliveredOrder = async () => {
 
                           <div className="text-right flex items-center gap-2">
                             <p className="text-sm font-black text-blue-700">{formatRupiah(item.price * item.quantity)}</p>
-                            {item.review && (
-                              <span className="text-[10px] text-gray-400 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md ml-2">Sudah Diulas</span>
+                            {(item.review || item.isReviewed) && (
+                              <span className="text-[10px] text-teal-600 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-md ml-2 font-medium">Sudah Diulas</span>
                             )}
                           </div>
                         </div>
@@ -621,7 +634,6 @@ const confirmDeliveredOrder = async () => {
                           </span>
                         )}
 
-                        {/* 💡 MODIFIKASI TERKONTROL: Ubah Link Detail Review Menjadi Pemicu Modal Riwayat */}
                         {activeTab === 'REVIEW' && (
                           activeReviewSubTab === 'NOT_REVIEWED' ? (
                             <button
@@ -656,6 +668,8 @@ const confirmDeliveredOrder = async () => {
           )}
         </div>
       </main>
+
+      {/* SISA COMPONENT MODAL SESUAI ASLINYA DIBAWAH... */}
 
       {/* MODAL FORM ALASAN PEMBATALAN */}
       {isCancelModalOpen && (

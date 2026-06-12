@@ -259,9 +259,26 @@ async function main() {
   // ==========================================
   console.log('Memasukkan data pesanan (orders)...');
   const ordersData = [
-    {
-      id: 'ord1', orderNumber: 'ORD-2024-001', userId: 'user2', totalAmount: 1500000, shippingCost: 25000, status: 'DELIVERED', paymentStatus: 'PAID', courier: 'JNE', shippingRecipient: 'Budi Santoso', shippingPhone: '082345678901', shippingAddress: 'Jl. Melati No. 25', shippingCity: 'Jakarta Timur', shippingProvince: 'DKI Jakarta', shippingPostalCode: '13210', createdAt: new Date('2024-04-01'), updatedAt: new Date('2024-04-05'),
-      items: { create: [
+  {
+    id: 'ord1',
+    orderNumber: 'ORD-2024-001',
+    userId: 'user2',
+    totalAmount: 1500000,
+    shippingCost: 25000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    trackingNumber: 'JNE2024001234',
+    courier: 'JNE',
+    shippingRecipient: 'Budi Santoso',
+    shippingPhone: '082345678901',
+    shippingAddress: 'Jl. Melati No. 25',
+    shippingCity: 'Jakarta Timur',
+    shippingProvince: 'DKI Jakarta',
+    shippingPostalCode: '13210',
+    createdAt: new Date('2024-04-01T08:00:00'),
+    updatedAt: new Date('2024-04-05T14:00:00'),
+    items: {
+      create: [
         { id: 'item1', productId: 'prod2', quantity: 2, price: 285000 },
         { id: 'item2', productId: 'prod13', quantity: 1, price: 95000 },
         { id: 'item10', productId: 'prod1', quantity: 1, price: 85000 },
@@ -272,12 +289,32 @@ async function main() {
         { id: 'item15', productId: 'prod9', quantity: 1, price: 35000 },
         { id: 'item16', productId: 'prod10', quantity: 1, price: 28000 },
         { id: 'item17', productId: 'prod14', quantity: 1, price: 38000 }
-      ] },
-      payments: { create: [{ id: 'pay1', userId: 'user2', method: 'TRANSFER', status: 'PAID', amount: 1500000, bankName: 'Bank BCA', paidAt: new Date('2024-04-01') }] }
+      ]
     },
-    {
-      id: 'ord2', orderNumber: 'ORD-2024-002', userId: 'user3', totalAmount: 1200000, shippingCost: 20000, status: 'DELIVERED', paymentStatus: 'PAID', courier: 'SiCepat', shippingRecipient: 'Siti Rahayu', shippingPhone: '083456789012', shippingAddress: 'Jl. Mawar Indah No. 12', shippingCity: 'Depok', shippingProvince: 'Jawa Barat', shippingPostalCode: '16415', createdAt: new Date('2024-04-10'), updatedAt: new Date('2024-04-13'),
-      items: { create: [
+    payments: {
+      create: [{ id: 'pay1', userId: 'user2', method: 'TRANSFER', status: 'PAID', amount: 1500000, bankName: 'Bank BCA', paidAt: new Date('2024-04-01T08:30:00') }]
+    }
+  },
+  {
+    id: 'ord2',
+    orderNumber: 'ORD-2024-002',
+    userId: 'user3',
+    totalAmount: 1200000,
+    shippingCost: 20000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    trackingNumber: 'SICEPAT2024005678',
+    courier: 'SiCepat',
+    shippingRecipient: 'Siti Rahayu',
+    shippingPhone: '083456789012',
+    shippingAddress: 'Jl. Mawar Indah No. 12',
+    shippingCity: 'Depok',
+    shippingProvince: 'Jawa Barat',
+    shippingPostalCode: '16415',
+    createdAt: new Date('2024-04-10T10:30:00'),
+    updatedAt: new Date('2024-04-13T11:00:00'),
+    items: {
+      create: [
         { id: 'item3', productId: 'prod1', quantity: 3, price: 85000 },
         { id: 'item18', productId: 'prod2', quantity: 1, price: 285000 },
         { id: 'item19', productId: 'prod7', quantity: 2, price: 18500 },
@@ -288,12 +325,30 @@ async function main() {
         { id: 'item24', productId: 'prod16', quantity: 1, price: 65000 },
         { id: 'item25', productId: 'prod17', quantity: 1, price: 85000 },
         { id: 'item26', productId: 'prod18', quantity: 1, price: 485000 }
-      ] },
-      payments: { create: [{ id: 'pay2', userId: 'user3', method: 'MIDTRANS', status: 'PAID', amount: 1200000, transactionId: 'MID-TX-99212', paidAt: new Date('2024-04-10') }] }
+      ]
     },
-    {
-      id: 'ord3', orderNumber: 'ORD-2024-003', userId: 'user4', totalAmount: 1100000, shippingCost: 15000, status: 'DELIVERED', paymentStatus: 'PAID', shippingRecipient: 'Ahmad Fauzi', shippingPhone: '084567890123', shippingAddress: 'Jl. Kenanga No. 7', shippingCity: 'Bekasi', shippingProvince: 'Jawa Barat', shippingPostalCode: '17111', createdAt: new Date('2024-04-15'), updatedAt: new Date('2024-04-16'),
-      items: { create: [
+    payments: {
+      create: [{ id: 'pay2', userId: 'user3', method: 'MIDTRANS', status: 'PAID', amount: 1200000, transactionId: 'MID-TX-99212', paidAt: new Date('2024-04-10T10:35:00') }]
+    }
+  },
+  {
+    id: 'ord3',
+    orderNumber: 'ORD-2024-003',
+    userId: 'user4',
+    totalAmount: 1100000,
+    shippingCost: 15000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    shippingRecipient: 'Ahmad Fauzi',
+    shippingPhone: '084567890123',
+    shippingAddress: 'Jl. Kenanga No. 7',
+    shippingCity: 'Bekasi',
+    shippingProvince: 'Jawa Barat',
+    shippingPostalCode: '17111',
+    createdAt: new Date('2024-04-15T14:00:00'),
+    updatedAt: new Date('2024-04-16T09:00:00'),
+    items: {
+      create: [
         { id: 'item4', productId: 'prod11', quantity: 1, price: 125000 },
         { id: 'item5', productId: 'prod12', quantity: 2, price: 28000 },
         { id: 'item27', productId: 'prod3', quantity: 1, price: 195000 },
@@ -304,12 +359,31 @@ async function main() {
         { id: 'item32', productId: 'prod14', quantity: 1, price: 38000 },
         { id: 'item33', productId: 'prod1', quantity: 1, price: 85000 },
         { id: 'item34', productId: 'prod2', quantity: 1, price: 285000 }
-      ] },
-      payments: { create: [{ id: 'pay3', userId: 'user4', method: 'EWALLET', status: 'PAID', amount: 1100000, bankName: 'GoPay', transactionId: 'GOPAY-99231', paidAt: new Date('2024-04-15') }] }
+      ]
     },
-    {
-      id: 'ord4', orderNumber: 'ORD-2024-004', userId: 'user5', totalAmount: 900000, shippingCost: 20000, status: 'DELIVERED', paymentStatus: 'PAID', shippingRecipient: 'Dewi Lestari', shippingPhone: '085678901234', shippingAddress: 'Griya Indah B-12', shippingCity: 'Tangerang', shippingProvince: 'Banten', shippingPostalCode: '15117', createdAt: new Date('2024-04-18'), updatedAt: new Date('2024-04-19'),
-      items: { create: [
+    payments: {
+      create: [{ id: 'pay3', userId: 'user4', method: 'EWALLET', status: 'PAID', amount: 1100000, bankName: 'GoPay', transactionId: 'GOPAY-99231', paidAt: new Date('2024-04-15T14:05:00') }]
+    }
+  },
+  {
+    id: 'ord4',
+    orderNumber: 'ORD-2024-004',
+    userId: 'user5',
+    totalAmount: 900000,
+    shippingCost: 20000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    shippingRecipient: 'Dewi Lestari',
+    shippingPhone: '085678901234',
+    shippingAddress: 'Griya Indah B-12',
+    shippingCity: 'Tangerang',
+    shippingProvince: 'Banten',
+    shippingPostalCode: '15117',
+    paymentProofUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400',
+    createdAt: new Date('2024-04-18T16:30:00'),
+    updatedAt: new Date('2024-04-19T20:00:00'),
+    items: {
+      create: [
         { id: 'item6', productId: 'prod7', quantity: 5, price: 18500 },
         { id: 'item7', productId: 'prod8', quantity: 2, price: 26000 },
         { id: 'item35', productId: 'prod15', quantity: 1, price: 145000 },
@@ -320,12 +394,30 @@ async function main() {
         { id: 'item40', productId: 'prod10', quantity: 1, price: 28000 },
         { id: 'item41', productId: 'prod3', quantity: 1, price: 195000 },
         { id: 'item42', productId: 'prod4', quantity: 1, price: 175000 }
-      ] },
-      payments: { create: [{ id: 'pay4', userId: 'user5', method: 'TRANSFER', status: 'PAID', amount: 900000, bankName: 'Bank BCA' }] }
+      ]
     },
-    {
-      id: 'ord5', orderNumber: 'ORD-2024-005', userId: 'user7', totalAmount: 1800000, shippingCost: 25000, status: 'DELIVERED', paymentStatus: 'PAID', shippingRecipient: 'Eko Prasetyo', shippingPhone: '087890123456', shippingAddress: 'Jl. Anggrek No. 3', shippingCity: 'Surabaya', shippingProvince: 'Jawa Timur', shippingPostalCode: '60232', createdAt: new Date('2024-04-20'), updatedAt: new Date('2024-04-22'),
-      items: { create: [
+    payments: {
+      create: [{ id: 'pay4', userId: 'user5', method: 'TRANSFER', status: 'PAID', amount: 900000, bankName: 'Bank BCA', paymentProof: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400' }]
+    }
+  },
+  {
+    id: 'ord5',
+    orderNumber: 'ORD-2024-005',
+    userId: 'user7',
+    totalAmount: 1800000,
+    shippingCost: 25000,
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    shippingRecipient: 'Eko Prasetyo',
+    shippingPhone: '087890123456',
+    shippingAddress: 'Jl. Anggrek No. 3',
+    shippingCity: 'Surabaya',
+    shippingProvince: 'Jawa Timur',
+    shippingPostalCode: '60232',
+    createdAt: new Date('2024-04-20T09:15:00'),
+    updatedAt: new Date('2024-04-22T09:15:00'),
+    items: {
+      create: [
         { id: 'item8', productId: 'prod3', quantity: 2, price: 195000 },
         { id: 'item9', productId: 'prod16', quantity: 1, price: 65000 },
         { id: 'item43', productId: 'prod5', quantity: 1, price: 320000 },
@@ -336,10 +428,13 @@ async function main() {
         { id: 'item48', productId: 'prod12', quantity: 1, price: 28000 },
         { id: 'item49', productId: 'prod13', quantity: 1, price: 95000 },
         { id: 'item50', productId: 'prod14', quantity: 1, price: 38000 }
-      ] },
-      payments: { create: [{ id: 'pay5', userId: 'user7', method: 'TRANSFER', status: 'PAID', amount: 1800000, bankName: 'Bank BCA' }] }
+      ]
+    },
+    payments: {
+      create: [{ id: 'pay5', userId: 'user7', method: 'TRANSFER', status: 'PAID', amount: 1800000, bankName: 'Bank BCA' }]
     }
-  ];
+  }
+];
 
   for (const order of ordersData) {
     await prisma.order.create({ data: order });

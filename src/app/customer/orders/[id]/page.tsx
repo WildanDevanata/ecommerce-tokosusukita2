@@ -6,14 +6,15 @@ import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Upload, CheckCircle2, Truck, Calendar,
-  MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send, ExternalLink
+  MapPin, CreditCard, AlertTriangle, Loader2, Image as ImageIcon, Send, ExternalLink, Star
 } from 'lucide-react';
 import { useApp } from '@/store/appcontext';
 import Navbar from '@/components/sharing/navbar';
 import Footer from '@/components/sharing/footer';
 import Script from 'next/script';
 
-const statusTimeline = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
+// Menambahkan REVIEWED ke dalam alur timeline utama
+const statusTimeline = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'REVIEWED'];
 
 const CANCEL_REASONS = [
   "Ingin mengubah alamat pengiriman",
@@ -45,7 +46,7 @@ export default function OrderDetailPage() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [loadingFetch, setLoadingFetch] = useState(true);
   const [loadingMidtrans, setLoadingMidtrans] = useState(false);
-
+  
   useEffect(() => {
     setIsHydrated(true);
     const foundInContext = orders.find(o => o.id === id);
@@ -89,70 +90,72 @@ export default function OrderDetailPage() {
       PROCESSING: { label: 'Diproses', color: 'bg-purple-100 text-purple-700' },
       SHIPPED: { label: 'Dikirim', color: 'bg-indigo-100 text-indigo-700' },
       DELIVERED: { label: 'Selesai', color: 'bg-green-100 text-green-700' },
+      REVIEWED: { label: 'Diulas', color: 'bg-teal-100 text-teal-700' },
       CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
     };
     return map[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
   };
 
   const handleMidtransPayment = async () => {
-    if (!order) return;
-    try {
-      setLoadingMidtrans(true);
-      
-      const res = await fetch(`/api/payments/midtrans/token`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id }) 
-      });
-      
-      if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
-      
-      const data = await res.json();
-      
-      if (window && (window as any).snap) {
-        (window as any).snap.pay(data.snapToken, {
-          onSuccess: async function(result: any){
-            alert("Pembayaran berhasil!");
-            try {
-              const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-              });
+  if (!order) return;
+  try {
+    setLoadingMidtrans(true);
+    
+    const res = await fetch(`/api/payments/midtrans/token`, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: order.id }) 
+    });
+    
+    if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
+    
+    const data = await res.json();
+    
+    if (window && (window as any).snap) {
+      (window as any).snap.pay(data.snapToken, {
+        onSuccess: async function(result: any){
+          alert("Pembayaran berhasil!");
+          try {
+            const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
 
-              if (updateRes.ok) {
-                setOrder((prev: any) => prev ? { 
-                  ...prev, 
-                  status: 'CONFIRMED',
-                  paymentStatus: 'PAID', 
-                  updatedAt: new Date().toISOString()
-                } : null);
-              }
-            } catch (err) {
-              console.error("Gagal memperbarui status order di DB:", err);
+            if (updateRes.ok) {
+              setOrder((prev: any) => prev ? { 
+                ...prev, 
+                status: 'CONFIRMED',
+                paymentStatus: 'PAID', 
+                updatedAt: new Date().toISOString()
+              } : null);
             }
-            router.refresh(); 
-          },
-          onPending: function(result: any){
-            alert("Menunggu pembayaran Anda.");
-            router.refresh();
-          },
-          onError: function(result: any){
-            alert("Pembayaran gagal, silakan coba lagi.");
-          },
-          onClose: function(){
-            alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.');
+          } catch (err) {
+            console.error("Gagal memperbarui status order di DB:", err);
           }
-        });
-      } else {
-        alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
-      }
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || "Gagal memproses pembayaran Midtrans");
-    } finally {
-      setLoadingMidtrans(false);
+          router.refresh(); 
+        },
+        onPending: function(result: any){
+          alert("Menunggu pembayaran Anda.");
+          router.refresh();
+        },
+        onError: function(result: any){ // Sudah diperbaiki di sini
+          console.error("Midtrans error:", result);
+          alert("Pembayaran gagal, silakan coba lagi.");
+        },
+        onClose: function(){
+          alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.');
+        }
+      });
+    } else {
+      alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
     }
-  };
+  } catch (error: any) {
+    console.error(error);
+    alert(error.message || "Gagal memproses pembayaran Midtrans");
+  } finally {
+    setLoadingMidtrans(false);
+  }
+};
 
   const uploadToCloudinary = async (file: File) => {
     const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dwjuyd3xj";
@@ -260,17 +263,21 @@ export default function OrderDetailPage() {
     );
   }
 
-  const statusIndex = statusTimeline.indexOf(order.status);
+  // Logika Interaktif: Cek apakah ada barang yang sudah diulas
+  const hasBeenReviewed = order.items?.some((item: any) => item.isReviewed);
+  const currentOrderStatus = (order.status === 'DELIVERED' && hasBeenReviewed) ? 'REVIEWED' : order.status;
+
+  const statusIndex = statusTimeline.indexOf(currentOrderStatus);
   const activeBanks = bankAccounts?.filter(b => b.isActive && b.type === 'BANK') || [];
   const isMidtrans = order.paymentMethod?.toUpperCase().includes('MIDTRANS');
 
   return (
-  <>
-    <Script 
-      src="https://app.sandbox.midtrans.com/snap/snap.js" 
-      data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
-    />
-    <Navbar />
+    <>
+      <Script 
+        src="https://app.sandbox.midtrans.com/snap/snap.js" 
+        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+      />
+      <Navbar />
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
@@ -280,7 +287,6 @@ export default function OrderDetailPage() {
             <h1 className="text-xl font-bold text-gray-800">Detail Pesanan</h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
               <p className="text-gray-500 text-sm font-mono">{order.orderNumber}</p>
-              {/* 🆕 1. TAMBAH TANGGAL ORDER DI BAWAH ORDER NUMBER */}
               {order.createdAt && (
                 <div className="flex items-center gap-1 text-xs text-gray-400">
                   <span className="text-gray-300">•</span>
@@ -296,7 +302,7 @@ export default function OrderDetailPage() {
           <div className="lg:col-span-2 space-y-5">
 
             {/* Status Tracker */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm overflow-x-auto">
               <h3 className="font-semibold text-gray-800 mb-6">Status Pesanan</h3>
               {order.status === 'CANCELLED' ? (
                 <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl border border-red-100">
@@ -310,8 +316,8 @@ export default function OrderDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between relative px-2">
-                  <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-100 mx-10">
+                <div className="flex items-center justify-between relative px-2 min-w-[500px]">
+                  <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-100 mx-8">
                     <div
                       className="h-full bg-blue-600 transition-all duration-500"
                       style={{ width: `${Math.max(0, (statusIndex / (statusTimeline.length - 1)) * 100)}%` }}
@@ -319,11 +325,11 @@ export default function OrderDetailPage() {
                   </div>
                   {statusTimeline.map((status, idx) => {
                     const passed = idx <= statusIndex;
-                    const emojis: Record<string, string> = { PENDING: '📋', CONFIRMED: '✅', PROCESSING: '⚙️', SHIPPED: '🚚', DELIVERED: '📦' };
-                    const labels: Record<string, string> = { PENDING: 'Menunggu', CONFIRMED: 'Konfirmasi', PROCESSING: 'Proses', SHIPPED: 'Kirim', DELIVERED: 'Selesai' };
+                    const emojis: Record<string, string> = { PENDING: '📋', CONFIRMED: '✅', PROCESSING: '⚙️', SHIPPED: '🚚', DELIVERED: '📦', REVIEWED: '⭐' };
+                    const labels: Record<string, string> = { PENDING: 'Menunggu', CONFIRMED: 'Konfirmasi', PROCESSING: 'Proses', SHIPPED: 'Kirim', DELIVERED: 'Selesai', REVIEWED: 'Ulasan' };
 
                     return (
-                      <div key={status} className="flex flex-col items-center relative z-10">
+                      <div key={status} className="flex flex-col items-center relative z-10 flex-1">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${passed ? 'bg-blue-600 shadow-lg shadow-blue-100 text-white' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
                           {passed ? <span>{emojis[status]}</span> : <span className="text-xs font-bold">{idx + 1}</span>}
                         </div>
@@ -336,7 +342,7 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {/* 🆕 2. MODIFIKASI AREA RESI: Tambah Layanan Courier, Service & Estimasi ETD */}
+              {/* Courier Area */}
               {order.courier && (
                 <div className="mt-6 p-4 bg-indigo-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-indigo-100">
                   <div className="flex items-center gap-4">
@@ -356,7 +362,7 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                   
-                  {/* Estimasi Pengiriman (ETD) */}
+                  {/* Shipping Estimate (ETD) */}
                   {order.shippingEtd && (
                     <div className="border-t sm:border-t-0 sm:border-l border-indigo-200/60 pt-3 sm:pt-0 sm:pl-4 flex-shrink-0">
                       <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Estimasi Tiba</p>
@@ -369,44 +375,44 @@ export default function OrderDetailPage() {
               )}
             </div>
               
-             {/* Section Bukti Pembayaran */}
-{order.paymentProofUrl && (
-  <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-    <div className="flex items-center gap-2 mb-4">
-      <ImageIcon className="w-5 h-5 text-blue-600" />
-      <h3 className="font-semibold text-gray-800">Bukti Pembayaran</h3>
-    </div>
-    <div className="flex flex-col sm:flex-row gap-4 items-center bg-gray-50 p-4 rounded-xl">
-      <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white">
-        <Image
-          src={order.paymentProofUrl}
-          alt="Bukti Transfer"
-          fill
-          className="object-cover"
-          unoptimized
-        />
-      </div>
-      <div className="text-center sm:text-left">
-        <p className={`text-sm font-bold ${order.status !== 'PENDING' ? 'text-green-600' : 'text-amber-600'}`}>
-          {order.status !== 'PENDING' ? 'Pembayaran Terverifikasi' : 'Menunggu Verifikasi Admin'}
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          {order.status !== 'PENDING' 
-            ? 'Bukti telah diverifikasi oleh admin.' 
-            : 'Bukti telah terkirim dan sedang dicek oleh admin.'}
-        </p>
-        <a 
-          href={order.paymentProofUrl} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-xs font-bold text-blue-600 hover:underline mt-2 inline-flex items-center gap-1"
-        >
-          Lihat Foto Ukuran Penuh <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
-    </div>
-  </div>
-)}
+            {/* Payment Proof Section */}
+            {order.paymentProofUrl && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <ImageIcon className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold text-gray-800">Bukti Pembayaran</h3>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 items-center bg-gray-50 p-4 rounded-xl">
+                  <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white">
+                    <Image
+                      src={order.paymentProofUrl}
+                      alt="Bukti Transfer"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <p className={`text-sm font-bold ${order.status !== 'PENDING' ? 'text-green-600' : 'text-amber-600'}`}>
+                      {order.status !== 'PENDING' ? 'Pembayaran Terverifikasi' : 'Menunggu Verifikasi Admin'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {order.status !== 'PENDING' 
+                        ? 'Bukti telah diverifikasi oleh admin.' 
+                        : 'Bukti telah terkirim dan sedang dicek oleh admin.'}
+                    </p>
+                    <a 
+                      href={order.paymentProofUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-xs font-bold text-blue-600 hover:underline mt-2 inline-flex items-center gap-1"
+                    >
+                      Lihat Foto Ukuran Penuh <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Payment Instructions */}
             {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
@@ -548,29 +554,53 @@ export default function OrderDetailPage() {
               <h3 className="font-semibold text-gray-800 mb-4">Rincian Produk</h3>
               <div className="divide-y divide-gray-50">
                 {(order.items || []).map((item: any) => (
-                  <div key={item.id} className="flex items-center gap-4 py-4">
-                    <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative`}>
-                      <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100">
-                        {item.image && item.image.length > 5 ? (
-                          <Image
-                            src={item.image}
-                            alt={item.productName}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full w-full">
-                            <span className="text-2xl">{item.productEmoji || '🥛'}</span>
-                          </div>
-                        )}
+                  <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className={`${item.productBgColor || 'bg-gray-100'} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-white overflow-hidden relative flex-shrink-0`}>
+                        <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100">
+                          {item.image && item.image.length > 5 ? (
+                            <Image
+                              src={item.image}
+                              alt={item.productName}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full w-full">
+                              <span className="text-2xl">{item.productEmoji || '🥛'}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
+                        <p className="text-xs text-gray-500 font-medium">{item.quantity} Unit x {formatCurrency(item.price)}</p>
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-800 text-sm leading-tight mb-1">{item.productName}</p>
-                      <p className="text-xs text-gray-500 font-medium">{item.quantity} Unit x {formatCurrency(item.price)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-800 text-sm">{formatCurrency(item.price * item.quantity)}</p>
+
+                    {/* Review Status Section */}
+                    <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-3 sm:pt-0">
+                      <div className="text-left sm:text-right">
+                        <p className="font-bold text-gray-800 text-sm">{formatCurrency(item.price * item.quantity)}</p>
+                      </div>
+
+                      {/* Muncul saat order berstatus DELIVERED */}
+                      {order.status === 'DELIVERED' && (
+                        <div className="flex-shrink-0">
+                          {item.isReviewed ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-full">
+                              <Star className="w-3 h-3 fill-teal-600 text-teal-600" /> Sudah Diulas
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/customer/reviews/new?orderId=${order.id}&productId=${item.productId || item.id}`}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl transition-all"
+                            >
+                              <Star className="w-3.5 h-3.5" /> Tulis Ulasan
+                            </Link>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -638,8 +668,8 @@ export default function OrderDetailPage() {
               <div className="mt-8 space-y-3">
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                   <span className="text-xs font-bold text-gray-400 uppercase">Status Order</span>
-                  <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase ${getStatusInfo(order.status).color}`}>
-                    {getStatusInfo(order.status).label}
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase ${getStatusInfo(currentOrderStatus).color}`}>
+                    {getStatusInfo(currentOrderStatus).label}
                   </span>
                 </div>
                 
@@ -679,7 +709,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* MODAL DIALOG POP-UP FORM ALASAN PEMBATALAN */}
+      {/* CANCEL MODAL DIALOG */}
       {isCancelModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 transform transition-all scale-100">
@@ -689,43 +719,38 @@ export default function OrderDetailPage() {
               </div>
               <div>
                 <h3 className="text-lg font-black text-gray-800">Batalkan Pesanan</h3>
-                <p className="text-sm text-gray-500 mt-0.5">Beritahu kami alasan pembatalan Anda sebelum mengonfirmasi.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Tindakan ini tidak bisa dibatalkan.</p>
               </div>
             </div>
-
+            
             <div className="p-6 space-y-4">
-              <label className="block text-sm font-bold text-gray-700">Pilih Alasan Utama:</label>
-              <div className="space-y-2">
-                {CANCEL_REASONS.map((reason, idx) => (
-                  <label
-                    key={idx}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedReason === reason
-                        ? 'border-blue-600 bg-blue-50/40 text-blue-900 font-medium'
-                        : 'border-gray-100 hover:bg-gray-50 text-gray-600'
-                      }`}
-                  >
-                    <input
-                      type="radio"
-                      name="cancelReason"
-                      value={reason}
-                      checked={selectedReason === reason}
-                      onChange={(e) => setSelectedReason(e.target.value)}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm">{reason}</span>
-                  </label>
-                ))}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider">Pilih Alasan Pembatalan</label>
+                <div className="space-y-2">
+                  {CANCEL_REASONS.map((reason) => (
+                    <label key={reason} className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer text-sm ${selectedReason === reason ? 'border-red-500 bg-red-50/30 text-red-900 font-semibold' : 'border-gray-100 hover:bg-gray-50 text-gray-600'}`}>
+                      <input
+                        type="radio"
+                        name="cancelReason"
+                        className="mt-0.5 text-red-600 focus:ring-red-500"
+                        checked={selectedReason === reason}
+                        onChange={() => setSelectedReason(reason)}
+                      />
+                      <span>{reason}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {selectedReason.startsWith("Lainnya") && (
-                <div className="space-y-1.5 animate-slideDown">
-                  <label className="block text-xs font-bold text-gray-500 uppercase">Tulis Alasan Kustom:</label>
+                <div className="animate-slideDown">
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider">Tulis Alasan Anda</label>
                   <textarea
                     rows={3}
-                    placeholder="Masukkan alasan pembatalan Anda secara detail di sini..."
+                    className="w-full text-sm border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                    placeholder="Masukkan alasan pembatalan secara detail..."
                     value={customReason}
                     onChange={(e) => setCustomReason(e.target.value)}
-                    className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                   />
                 </div>
               )}
@@ -733,25 +758,31 @@ export default function OrderDetailPage() {
 
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
               <button
-                type="button"
                 onClick={() => setIsCancelModalOpen(false)}
-                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-100 transition-colors"
+                disabled={isCancelling}
+                className="flex-1 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
                 Kembali
               </button>
               <button
-                type="button"
                 onClick={confirmCancelOrder}
                 disabled={isCancelling}
-                className="flex-1 py-3 bg-red-600 text-white font-bold text-sm rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ya, Batalkan'}
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Membatalkan...</span>
+                  </>
+                ) : (
+                  <span>Konfirmasi Batal</span>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
     <Footer />
-  </>
+    </>
   );
 }

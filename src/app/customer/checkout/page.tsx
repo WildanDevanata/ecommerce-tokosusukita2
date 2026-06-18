@@ -64,8 +64,8 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>('TRANSFER');
 
-  const [selectedBank, setSelectedBank] =
-    useState('');
+  const [selectedBankId, setSelectedBankId] =
+    useState<string>('');
 
   const [notes, setNotes] =
     useState('');
@@ -121,7 +121,6 @@ export default function CheckoutPage() {
       try {
         setLoadingOngkir(true);
 
-        // Cari kota tujuan berdasarkan nama kota user
         const foundCity = citiesData.find(
           (city: any) =>
             city.city_name
@@ -137,9 +136,7 @@ export default function CheckoutPage() {
             'Kota tidak ditemukan:',
             address.city
           );
-
           setOngkirResults([]);
-
           return;
         }
 
@@ -156,12 +153,9 @@ export default function CheckoutPage() {
                 process.env
                   .NEXT_PUBLIC_SELLER_CITY_ID ||
                 '501',
-
               destination:
                 foundCity.city_id,
-
               courier,
-
               weight: 1000,
             }),
           }
@@ -170,11 +164,6 @@ export default function CheckoutPage() {
         const result =
           await response.json();
 
-        console.log(
-          'ONGKIR RESPONSE:',
-          result
-        );
-
         if (!response.ok) {
           throw new Error(
             result?.message ||
@@ -182,7 +171,6 @@ export default function CheckoutPage() {
           );
         }
 
-        // SUPPORT 2 FORMAT RESPONSE
         if (Array.isArray(result)) {
           setOngkirResults(result);
         } else if (
@@ -198,7 +186,6 @@ export default function CheckoutPage() {
           'FETCH ONGKIR ERROR:',
           error
         );
-
         setOngkirResults([]);
       } finally {
         setLoadingOngkir(false);
@@ -214,7 +201,6 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2" />
-
         <p className="text-sm text-gray-500 font-medium">
           Memuat data checkout...
         </p>
@@ -226,7 +212,6 @@ export default function CheckoutPage() {
 
   // ================= CALCULATIONS =================
 
-  // PERBAIKAN: Mengambil harga dari item.product.price
   const cartTotal = cart.reduce(
     (total, item) =>
       total + (item.product?.price || 0) * item.quantity,
@@ -239,11 +224,9 @@ export default function CheckoutPage() {
   const total =
     cartTotal + shippingCost;
 
-  const activeBanks = bankAccounts
-    ? bankAccounts.filter(
-        (b) => b.isActive
-      )
-    : [];
+  // Helper boolean untuk validasi pilihan rekening tujuan
+  const isPaymentAccountMissing =
+    (paymentMethod === 'TRANSFER' || paymentMethod === 'EWALLET') && !selectedBankId;
 
   // ================= PLACE ORDER =================
 
@@ -256,7 +239,13 @@ export default function CheckoutPage() {
         alert(
           'Pilih layanan pengiriman terlebih dahulu'
         );
+        return;
+      }
 
+      if (paymentMethod !== 'MIDTRANS' && !selectedBankId) {
+        alert(
+          `Silakan pilih ${paymentMethod === 'TRANSFER' ? 'rekening Bank' : 'akun E-Wallet'} tujuan pembayaran terlebih dahulu!`
+        );
         return;
       }
 
@@ -265,45 +254,29 @@ export default function CheckoutPage() {
 
         const payload = {
           userId: currentUser.id,
-
           totalAmount: total,
-
           shippingCost:
             selectedShipping.cost,
-
           paymentMethod,
-
+          bankAccountId: paymentMethod !== 'MIDTRANS' ? selectedBankId : undefined,
           courier:
             selectedShipping.courier.toUpperCase(),
-
           shippingService:
             selectedShipping.service,
-
           shippingEtd:
             selectedShipping.etd,
-
           notes,
-
           paymentStatus: 'PENDING',
-
           status: 'PENDING',
-
           shippingRecipient:
             address.recipientName,
-
           shippingPhone: address.phone,
-
           shippingAddress: address.address,
-
           shippingCity: address.city,
-
           shippingProvince:
             address.province,
-
           shippingPostalCode:
             address.postalCode,
-
-          // PERBAIKAN: Memetakan productId asli dan harga dari objek product
           items: cart.map((item) => ({
             productId: item.productId,
             quantity: item.quantity,
@@ -335,7 +308,6 @@ export default function CheckoutPage() {
           await res.json();
 
         await refreshOrders();
-
         localStorage.removeItem(
           'cart'
         );
@@ -357,21 +329,18 @@ export default function CheckoutPage() {
                   async () => {
                     try {
                       await fetch(
-                        `/api/orders/${order.orderNumber}`,
+                        `/api/orders/${order.id}`,
                         {
                           method:
                             'PATCH',
-
                           headers: {
                             'Content-Type':
                               'application/json',
                           },
-
                           body: JSON.stringify(
                             {
                               paymentStatus:
                                 'PAID',
-
                               status:
                                 'CONFIRMED',
                             }
@@ -383,33 +352,28 @@ export default function CheckoutPage() {
                         err
                       );
                     }
-
                     await refreshOrders();
-
+                    
                     router.push(
-                      `/customer/orders/${order.orderNumber}`
+                      `/customer/orders/${order.id}`
                     );
                   },
-
                 onPending: () => {
                   router.push(
-                    `/customer/orders/${order.orderNumber}`
+                    `/customer/orders/${order.id}`
                   );
                 },
-
                 onError: () => {
                   alert(
                     'Pembayaran gagal'
                   );
-
                   router.push(
-                    `/customer/orders/${order.orderNumber}`
+                    `/customer/orders/${order.id}`
                   );
                 },
-
                 onClose: () => {
                   router.push(
-                    `/customer/orders/${order.orderNumber}`
+                    `/customer/orders/${order.id}`
                   );
                 },
               }
@@ -417,12 +381,11 @@ export default function CheckoutPage() {
           }
         } else {
           router.push(
-            `/customer/orders/${order.orderNumber}`
+            `/customer/orders/${order.id}`
           );
         }
       } catch (error) {
         console.error(error);
-
         alert(
           'Gagal membuat pesanan'
         );
@@ -436,22 +399,20 @@ export default function CheckoutPage() {
   const paymentMethods = [
     {
       id: 'MIDTRANS',
-      label: 'QRIS (Midtrans)',
-      desc: 'QRIS & VA',
+      label: 'QRIS & Virtual Account',
+      desc: 'Pembayaran otomatis via Midtrans',
       emoji: '💳',
     },
-
     {
       id: 'TRANSFER',
-      label: 'Transfer Bank',
-      desc: 'Transfer manual',
+      label: 'Transfer Bank (Manual)',
+      desc: 'Transfer manual ke rekening toko',
       emoji: '🏦',
     },
-
     {
       id: 'EWALLET',
       label: 'E-Wallet',
-      desc: 'OVO / Dana / GoPay',
+      desc: 'Transfer ke GoPay / OVO / DANA toko',
       emoji: '📱',
     },
   ] as const;
@@ -478,33 +439,16 @@ export default function CheckoutPage() {
 
           <div className="mb-6">
             <nav className="text-sm text-gray-500 mb-2">
-              <Link
-                href="/"
-                className="hover:text-blue-600"
-              >
+              <Link href="/" className="hover:text-blue-600">
                 Beranda
               </Link>
-
-              <span className="mx-2">
-                /
-              </span>
-
-              <Link
-                href="/customer/cart"
-                className="hover:text-blue-600"
-              >
+              <span className="mx-2">/</span>
+              <Link href="/customer/cart" className="hover:text-blue-600">
                 Keranjang
               </Link>
-
-              <span className="mx-2">
-                /
-              </span>
-
-              <span className="text-gray-800">
-                Checkout
-              </span>
+              <span className="mx-2">/</span>
+              <span className="text-gray-800">Checkout</span>
             </nav>
-
             <h1 className="text-3xl font-black text-gray-800">
               Checkout
             </h1>
@@ -522,12 +466,10 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-5 h-5 text-blue-600" />
-
                     <h3 className="text-gray-800 font-bold">
                       Alamat Pengiriman
                     </h3>
                   </div>
-
                   <Link
                     href="/customer/profile?tab=address"
                     className="text-sm text-blue-600 hover:underline"
@@ -539,21 +481,13 @@ export default function CheckoutPage() {
                 {address ? (
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
                     <p className="font-medium text-gray-800">
-                      {
-                        address.recipientName
-                      }
+                      {address.recipientName}
                     </p>
-
                     <p className="text-sm text-gray-600">
                       {address.phone}
                     </p>
-
                     <p className="text-sm text-gray-600 mt-1">
-                      {address.address},{' '}
-                      {address.city},{' '}
-                      {
-                        address.province
-                      }
+                      {address.address}, {address.city}, {address.province}
                     </p>
                   </div>
                 ) : (
@@ -572,116 +506,164 @@ export default function CheckoutPage() {
 
                 <CourierSelect
                   selected={courier}
-                  onChange={(
-                    value
-                  ) => {
-                    setCourier(
-                      value
-                    );
-
-                    setSelectedShipping(
-                      null
-                    );
+                  onChange={(value) => {
+                    setCourier(value);
+                    setSelectedShipping(null);
                   }}
                 />
 
                 <div className="mt-5">
                   <OngkirResult
-                    results={
-                      ongkirResults
-                    }
-                    selected={
-                      selectedShipping
-                    }
-                    onSelect={(
-                      shipping
-                    ) => {
-                      setSelectedShipping(
-                        shipping
-                      );
+                    results={ongkirResults}
+                    selected={selectedShipping}
+                    onSelect={(shipping) => {
+                      setSelectedShipping(shipping);
                     }}
-                    loading={
-                      loadingOngkir
-                    }
+                    loading={loadingOngkir}
                   />
                 </div>
               </div>
 
               {/* PAYMENT */}
 
-              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
                 <div className="flex items-center gap-2 mb-4">
                   <CreditCard className="w-5 h-5 text-blue-600" />
-
                   <h3 className="font-bold text-gray-800">
-                    Metode Pembayaran
+                    Metoke Pembayaran
                   </h3>
                 </div>
 
                 <div className="space-y-2">
-                  {paymentMethods.map(
-                    (method) => (
-                      <label
-                        key={
-                          method.id
-                        }
-                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${
-                          paymentMethod ===
-                          method.id
-                            ? 'border-blue-600 bg-blue-50'
-                            : 'border-gray-200'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          checked={
-                            paymentMethod ===
-                            method.id
-                          }
-                          onChange={() =>
-                            setPaymentMethod(
-                              method.id
-                            )
-                          }
-                          className="sr-only"
-                        />
+                  {paymentMethods.map((method) => (
+                    <label
+                      key={method.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        paymentMethod === method.id
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === method.id}
+                        onChange={() => {
+                          setPaymentMethod(method.id);
+                          setSelectedBankId(''); // Reset bank terpilih saat ganti metode pembayaran
+                        }}
+                        className="sr-only"
+                      />
 
-                        <span className="text-xl">
-                          {
-                            method.emoji
-                          }
-                        </span>
+                      <span className="text-xl">
+                        {method.emoji}
+                      </span>
 
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">
-                            {
-                              method.label
-                            }
-                          </p>
-
-                          <p className="text-xs text-gray-500">
-                            {
-                              method.desc
-                            }
-                          </p>
-                        </div>
-                      </label>
-                    )
-                  )}
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">
+                          {method.label}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {method.desc}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
 
-                <div className="mt-5">
+                {/* LOGIKA AKUN TRANSFER BANK (MANUAL) */}
+                {paymentMethod === 'TRANSFER' && bankAccounts && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-3 animate-fadeIn">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Rekening Bank Tujuan:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {bankAccounts
+                        .filter((bank) => bank.type === 'BANK' && bank.isActive)
+                        .map((bank) => (
+                          <div
+                            key={bank.id}
+                            onClick={() => setSelectedBankId(bank.id)}
+                            className={`p-4 rounded-xl border cursor-pointer bg-white transition-all ${
+                              selectedBankId === bank.id
+                                ? 'border-blue-500 shadow-sm ring-2 ring-blue-100'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <span className={`text-[10px] px-2 py-0.5 text-white font-black rounded-md ${bank.color || 'bg-blue-600'}`}>
+                                {bank.bankName}
+                              </span>
+                              <input
+                                type="radio"
+                                name="selectedBank"
+                                checked={selectedBankId === bank.id}
+                                onChange={() => setSelectedBankId(bank.id)}
+                                className="text-blue-600 focus:ring-blue-500"
+                              />
+                            </div>
+                            <p className="text-sm font-black text-gray-800 tracking-wide select-all">
+                              {bank.accountNumber}
+                            </p>
+                            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                              a.n {bank.accountName}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* LOGIKA AKUN E-WALLET */}
+                {paymentMethod === 'EWALLET' && bankAccounts && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-3 animate-fadeIn">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Pilih Akun E-Wallet Toko:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {bankAccounts
+                        .filter((bank) => bank.type === 'EWALLET' && bank.isActive)
+                        .map((bank) => (
+                          <div
+                            key={bank.id}
+                            onClick={() => setSelectedBankId(bank.id)}
+                            className={`p-4 rounded-xl border cursor-pointer bg-white transition-all ${
+                              selectedBankId === bank.id
+                                ? 'border-blue-500 shadow-sm ring-2 ring-blue-100'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <span className={`text-[10px] px-2 py-0.5 text-white font-black rounded-md ${bank.color || 'bg-green-500'}`}>
+                                {bank.bankName}
+                              </span>
+                              <input
+                                type="radio"
+                                name="selectedEwallet"
+                                checked={selectedBankId === bank.id}
+                                onChange={() => setSelectedBankId(bank.id)}
+                                className="text-blue-600 focus:ring-blue-500"
+                              />
+                            </div>
+                            <p className="text-sm font-black text-gray-800 tracking-wide select-all">
+                              {bank.accountNumber}
+                            </p>
+                            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                              a.n {bank.accountName}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4">
                   <textarea
                     value={notes}
-                    onChange={(e) =>
-                      setNotes(
-                        e.target
-                          .value
-                      )
-                    }
+                    onChange={(e) => setNotes(e.target.value)}
                     rows={3}
                     placeholder="Catatan pesanan..."
-                    className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+                    className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -691,109 +673,58 @@ export default function CheckoutPage() {
 
             <div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24">
-
                 <h3 className="font-bold text-gray-800 mb-4">
                   Detail Pesanan
                 </h3>
 
                 <div className="space-y-3 mb-4">
-                  {cart.map(
-                    (item) => (
-                      <div
-                        key={
-                          item.id
-                        }
-                        className="flex justify-between"
-                      >
-                        <div>
-                          {/* PERBAIKAN: Mengambil nama dari item.product */}
-                          <p className="text-sm font-medium">
-                            {
-                              item.product?.name || 'Produk Tanpa Nama'
-                            }
-                          </p>
-
-                          {/* PERBAIKAN: Mengambil harga satuan dari item.product */}
-                          <p className="text-xs text-gray-500">
-                            {
-                              item.quantity
-                            }{' '}
-                            x{' '}
-                            {formatRupiah(
-                              item.product?.price || 0
-                            )}
-                          </p>
-                        </div>
-
-                        {/* PERBAIKAN: Menghitung total harga baris dari item.product */}
-                        <p className="text-sm font-bold">
-                          {formatRupiah(
-                            (item.product?.price || 0) *
-                              item.quantity
-                          )}
+                  {cart.map((item) => (
+                    <div key={item.id} className="flex justify-between text-gray-700">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {item.product?.name || 'Produk Tanpa Nama'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {item.quantity} x {formatRupiah(item.product?.price || 0)}
                         </p>
                       </div>
-                    )
-                  )}
+                      <p className="text-sm font-bold text-gray-800">
+                        {formatRupiah((item.product?.price || 0) * item.quantity)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="border-t border-gray-100 pt-4 space-y-2">
-
-                  <div className="flex justify-between text-sm">
-                    <span>
-                      Subtotal
-                    </span>
-
-                    <span>
-                      {formatRupiah(
-                        cartTotal
-                      )}
-                    </span>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Subtotal</span>
+                    <span>{formatRupiah(cartTotal)}</span>
                   </div>
 
-                  <div className="flex justify-between text-sm">
-                    <span>
-                      Ongkir
-                    </span>
-
-                    <span>
-                      {formatRupiah(
-                        shippingCost
-                      )}
-                    </span>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Ongkir</span>
+                    <span>{formatRupiah(shippingCost)}</span>
                   </div>
 
-                  <div className="flex justify-between font-bold text-lg pt-2">
+                  <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-50 mt-1">
                     <span>Total</span>
-
                     <span className="text-blue-700">
-                      {formatRupiah(
-                        total
-                      )}
+                      {formatRupiah(total)}
                     </span>
                   </div>
                 </div>
 
                 <button
-                  onClick={
-                    handlePlaceOrder
-                  }
-                  disabled={
-                    loading ||
-                    loadingOngkir ||
-                    !selectedShipping
-                  }
-                  className="w-full mt-5 bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={handlePlaceOrder}
+                  disabled={loading || loadingOngkir || !selectedShipping || isPaymentAccountMissing}
+                  className="w-full mt-5 bg-blue-600 text-white py-3 rounded-2xl font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-100"
                 >
                   {loading ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <CheckCircle2 className="w-5 h-5" />
                   )}
-
-                  {loading
-                    ? 'Memproses...'
-                    : 'Buat Pesanan'}
+                  {loading ? 'Memproses...' : 'Buat Pesanan'}
                 </button>
               </div>
             </div>

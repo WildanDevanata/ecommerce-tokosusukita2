@@ -49,12 +49,22 @@ export default function OrderDetailPage() {
   
   useEffect(() => {
     setIsHydrated(true);
+
+    if (!id) return;
+
+    // 🛡️ PROTEKSI URL: Jika ID di URL adalah format orderNumber ("ORD-"), tolak akses!
+    if (id.startsWith('ORD-')) {
+      alert('Akses ditolak: Format URL tidak valid. Gunakan ID unik pesanan.');
+      router.push('/customer/orders');
+      return;
+    }
+
     const foundInContext = orders.find(o => o.id === id);
 
     if (foundInContext) {
       setOrder(foundInContext);
-      loadingFetch && setLoadingFetch(false);
-    } else if (id) {
+      setLoadingFetch(false);
+    } else {
       setLoadingFetch(true);
       fetch(`/api/orders/${id}`)
         .then((res) => {
@@ -64,10 +74,14 @@ export default function OrderDetailPage() {
         .then((data) => {
           if (data) setOrder(data);
         })
-        .catch((err) => console.error("Fallback fetch error:", err))
+        .catch((err) => {
+          console.error("Fallback fetch error:", err);
+          alert('Pesanan tidak ditemukan atau Anda tidak memiliki akses.');
+          router.push('/customer/orders');
+        })
         .finally(() => setLoadingFetch(false));
     }
-  }, [id, orders]);
+  }, [id, orders, router]);
 
   useEffect(() => {
     return () => {
@@ -97,65 +111,65 @@ export default function OrderDetailPage() {
   };
 
   const handleMidtransPayment = async () => {
-  if (!order) return;
-  try {
-    setLoadingMidtrans(true);
-    
-    const res = await fetch(`/api/payments/midtrans/token`, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId: order.id }) 
-    });
-    
-    if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
-    
-    const data = await res.json();
-    
-    if (window && (window as any).snap) {
-      (window as any).snap.pay(data.snapToken, {
-        onSuccess: async function(result: any){
-          alert("Pembayaran berhasil!");
-          try {
-            const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (updateRes.ok) {
-              setOrder((prev: any) => prev ? { 
-                ...prev, 
-                status: 'CONFIRMED',
-                paymentStatus: 'PAID', 
-                updatedAt: new Date().toISOString()
-              } : null);
-            }
-          } catch (err) {
-            console.error("Gagal memperbarui status order di DB:", err);
-          }
-          router.refresh(); 
-        },
-        onPending: function(result: any){
-          alert("Menunggu pembayaran Anda.");
-          router.refresh();
-        },
-        onError: function(result: any){ // Sudah diperbaiki di sini
-          console.error("Midtrans error:", result);
-          alert("Pembayaran gagal, silakan coba lagi.");
-        },
-        onClose: function(){
-          alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.');
-        }
+    if (!order) return;
+    try {
+      setLoadingMidtrans(true);
+      
+      const res = await fetch(`/api/payments/midtrans/token`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }) 
       });
-    } else {
-      alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
+      
+      if (!res.ok) throw new Error("Gagal mendapatkan token pembayaran");
+      
+      const data = await res.json();
+      
+      if (window && (window as any).snap) {
+        (window as any).snap.pay(data.snapToken, {
+          onSuccess: async function(result: any){
+            alert("Pembayaran berhasil!");
+            try {
+              const updateRes = await fetch(`/api/orders/${order.id}/confirm-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (updateRes.ok) {
+                setOrder((prev: any) => prev ? { 
+                  ...prev, 
+                  status: 'CONFIRMED',
+                  paymentStatus: 'PAID', 
+                  updatedAt: new Date().toISOString()
+                } : null);
+              }
+            } catch (err) {
+              console.error("Gagal memperbarui status order di DB:", err);
+            }
+            router.refresh(); 
+          },
+          onPending: function(result: any){
+            alert("Menunggu pembayaran Anda.");
+            router.refresh();
+          },
+          onError: function(result: any){
+            console.error("Midtrans error:", result);
+            alert("Pembayaran gagal, silakan coba lagi.");
+          },
+          onClose: function(){
+            alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.');
+          }
+        });
+      } else {
+        alert("Midtrans SDK gagal dimuat. Silakan refresh halaman.");
+      }
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Gagal memproses pembayaran Midtrans");
+    } finally {
+      loadingMidtrans && setLoadingMidtrans(false);
     }
-  } catch (error: any) {
-    console.error(error);
-    alert(error.message || "Gagal memproses pembayaran Midtrans");
-  } finally {
-    setLoadingMidtrans(false);
-  }
-};
+  };
 
   const uploadToCloudinary = async (file: File) => {
     const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dwjuyd3xj";
@@ -248,22 +262,11 @@ export default function OrderDetailPage() {
     );
   }
 
-  if (!order) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="text-6xl mb-4">😕</div>
-          <p className="text-gray-800 font-bold">Pesanan tidak ditemukan</p>
-          <p className="text-xs text-gray-500 max-w-xs mt-1">ID pesanan salah atau belum sinkron.</p>
-          <Link href="/customer/orders" className="text-blue-600 hover:underline mt-4 inline-block text-sm font-medium">
-            Kembali ke Pesanan
-          </Link>
-        </div>
-      </div>
-    );
+  // Jika setelah memuat selesai dan halaman tidak di-redirect tetapi data order tetap kosong
+  if (id.startsWith('ORD-') || !order) {
+    return null; 
   }
 
-  // Logika Interaktif: Cek apakah ada barang yang sudah diulas
   const hasBeenReviewed = order.items?.some((item: any) => item.isReviewed);
   const currentOrderStatus = (order.status === 'DELIVERED' && hasBeenReviewed) ? 'REVIEWED' : order.status;
 
@@ -362,7 +365,6 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                   
-                  {/* Shipping Estimate (ETD) */}
                   {order.shippingEtd && (
                     <div className="border-t sm:border-t-0 sm:border-l border-indigo-200/60 pt-3 sm:pt-0 sm:pl-4 flex-shrink-0">
                       <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Estimasi Tiba</p>
@@ -578,13 +580,11 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
 
-                    {/* Review Status Section */}
                     <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-3 sm:pt-0">
                       <div className="text-left sm:text-right">
                         <p className="font-bold text-gray-800 text-sm">{formatCurrency(item.price * item.quantity)}</p>
                       </div>
 
-                      {/* Muncul saat order berstatus DELIVERED */}
                       {order.status === 'DELIVERED' && (
                         <div className="flex-shrink-0">
                           {item.isReviewed ? (
@@ -782,7 +782,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
       )}
-    <Footer />
+      <Footer />
     </>
   );
 }

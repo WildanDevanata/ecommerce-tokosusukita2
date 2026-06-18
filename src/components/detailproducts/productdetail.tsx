@@ -13,9 +13,9 @@ import {
   CheckCircle2,
   X,
   AlertCircle,
-  Heart // ➕ Import icon Heart dari lucide-react
+  Heart 
 } from 'lucide-react';
-import { useApp } from '@/store/appcontext'; // ➕ Import useApp untuk modul wishlist global
+import { useApp } from '@/store/appcontext';
 
 interface ProductDetailsProps {
   product: any;
@@ -24,7 +24,7 @@ interface ProductDetailsProps {
   handleAddToCart: (qty: number) => void;
   handleBuyNow: (qty: number) => void;
   formatRupiah: (n: number) => string;
-  isCustomer: boolean; // Menerima prop role check
+  isCustomer: boolean; 
 }
 
 export const ProductDetails = ({
@@ -36,12 +36,11 @@ export const ProductDetails = ({
   formatRupiah,
   isCustomer,
 }: ProductDetailsProps) => {
-  const { wishlist, toggleWishlist } = useApp(); // ➕ Dapatkan state wishlist global
+  const { wishlist, toggleWishlist } = useApp(); 
   const [showNotif, setShowNotif] = React.useState(false);
   const [showModal, setShowModal] = React.useState(false);
   const [actionType, setActionType] = React.useState<'cart' | 'buy'>('cart');
 
-  // Periksa apakah produk ini saat ini ada di dalam array wishlist
   const isWishlisted = wishlist?.includes(product.id);
 
   const openCartModal = () => {
@@ -67,6 +66,9 @@ export const ProductDetails = ({
     setShowModal(false);
   };
 
+  // Memeriksa ketersediaan ulasan secara aman
+  const hasReviews = product.reviewCount && product.reviewCount > 0;
+
   return (
     <div className="space-y-5 relative">
       {/* TOAST NOTIFIKASI */}
@@ -89,18 +91,32 @@ export const ProductDetails = ({
         </h1>
       </div>
 
-      {/* RATING */}
+      {/* RATING PANEL (DI-UPGRADE) */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <div className="flex items-center gap-1 text-yellow-400">
-          {[1, 2, 3, 4].map((i) => (
-            <Star key={i} className="w-4 h-4 fill-current" />
-          ))}
-          <span className="ml-1 text-gray-700 font-medium">{product.rating}</span>
-        </div>
+        {hasReviews ? (
+          <>
+            {/* Hanya render bintang jika sudah ada ulasan riil */}
+            <div className="flex items-center gap-1 text-yellow-400">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star 
+                  key={i} 
+                  className={`w-4 h-4 ${i <= Math.round(product.rating || 0) ? 'fill-current' : 'text-gray-200'}`} 
+                />
+              ))}
+              <span className="ml-1 text-gray-700 font-bold">{Number(product.rating || 0).toFixed(1)}</span>
+            </div>
+            <span className="text-gray-300">|</span>
+            <span className="text-gray-500 font-medium">{product.reviewCount} ulasan</span>
+          </>
+        ) : (
+          /* Tampilan alternatif rapi jika ulasan produk masih kosong */
+          <span className="text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-md text-xs font-medium">
+            Belum ada ulasan
+          </span>
+        )}
+        
         <span className="text-gray-300">|</span>
-        <span className="text-gray-500">{product.reviewCount} ulasan</span>
-        <span className="text-gray-300">|</span>
-        <span className="text-gray-500">{product.soldCount.toLocaleString()} terjual</span>
+        <span className="text-gray-500">{product.soldCount ? product.soldCount.toLocaleString() : 0} terjual</span>
       </div>
 
       {/* PRICE PANEL */}
@@ -172,7 +188,7 @@ export const ProductDetails = ({
         </button>
       </div>
 
-      {/* 🛠️ TAMBAHAN: TOMBOL WISHLIST DI BAWAH BUTTON UTAMA */}
+      {/* TOMBOL WISHLIST */}
       <button
         type="button"
         disabled={!isCustomer}
@@ -281,8 +297,9 @@ export const ProductDetails = ({
               <button
                 type="button"
                 onClick={handleConfirm}
-                className={`flex-1 py-3 text-white rounded-xl font-bold text-sm shadow-lg ${actionType === 'cart' ? 'bg-blue-600' : 'bg-green-600'
-                  }`}
+                className={`flex-1 py-3 text-white rounded-xl font-bold text-sm shadow-lg ${
+                  actionType === 'cart' ? 'bg-blue-600' : 'bg-green-600'
+                }`}
               >
                 Ya, Lanjutkan
               </button>

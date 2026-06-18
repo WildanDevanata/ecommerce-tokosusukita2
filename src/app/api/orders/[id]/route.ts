@@ -82,24 +82,29 @@ const formatOrderResponse = (order: any) => ({
   },
 });
 
+// ================= GET =================
 export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
+
+    // 🛡️ PROTEKSI API: Jika request datang membawa orderNumber (diawali 'ORD-'), tolak request!
+    if (id.startsWith('ORD-')) {
+      return NextResponse.json(
+        { error: "Akses Ditolak: Gunakan ID unik sistem database, bukan Nomor Order." },
+        { status: 400 }
+      );
+    }
     
-    const order = await prisma.order.findFirst({
-      where: {
-        OR: [
-          { id: id },
-          { orderNumber: id }
-        ]
-      },
+    // Pencarian ketat hanya berdasarkan ID asli database
+    const order = await prisma.order.findUnique({
+      where: { id: id },
       include: {
         user: true,
         items: { include: { product: true, review: true } },
-        payments: true, // 🔥 TAMBAHKAN INI AGAR DATA PEMBAYARAN TERIKUT
+        payments: true,
       },
     });
 
@@ -107,11 +112,10 @@ export async function GET(
       return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
     }
 
-    // Jika Anda punya fungsi formatOrderResponse, pastikan 
-    // fungsi tersebut juga menyertakan data payments ke dalam return object-nya
     return NextResponse.json(formatOrderResponse(order));
   } catch (error) {
-    // ...
+    console.error("Error pada GET Order:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
@@ -124,14 +128,17 @@ export async function PATCH(
     const { id } = await context.params;
     const body = await req.json();
 
-    // 1. CARI ORDER BERDASARKAN ID ATAU ORDERNUMBER SECARA FLEKSIBEL
-    const existingOrder = await prisma.order.findFirst({
-      where: {
-        OR: [
-          { id: id },
-          { orderNumber: id }
-        ]
-      },
+    // 🛡️ PROTEKSI API: Tolak modifikasi via rute jika parameter menggunakan orderNumber
+    if (id.startsWith('ORD-')) {
+      return NextResponse.json(
+        { error: "Akses Ditolak: Modifikasi data wajib menggunakan ID unik pesanan." },
+        { status: 400 }
+      );
+    }
+
+    // Ambil data pesanan lama berdasarkan ID tunggal
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: id },
     });
 
     if (!existingOrder) {
@@ -174,27 +181,24 @@ export async function PATCH(
       updateData.paymentStatus = 'WAITING_VERIFICATION';
     }
 
-    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
-    // 2. EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
-const [updatedOrder] = await prisma.$transaction([
-  // Update tabel Order
-  prisma.order.update({
-    where: { id: existingOrder.id },
-    data: updateData,
-    include: {
-      user: true,
-      items: { include: { product: true, review: true } },
-    },
-  }),
-  // Sinkronisasi ke tabel Payment
-  prisma.payment.updateMany({
-    where: { orderId: existingOrder.id },
-    data: {
-      paymentProof: body.paymentProofUrl || existingOrder.paymentProofUrl,
-      status: updateData.paymentStatus || 'WAITING_VERIFICATION',
-    },
-  }),
-]);
+    // EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
+    const [updatedOrder] = await prisma.$transaction([
+      prisma.order.update({
+        where: { id: existingOrder.id },
+        data: updateData,
+        include: {
+          user: true,
+          items: { include: { product: true, review: true } },
+        },
+      }),
+      prisma.payment.updateMany({
+        where: { orderId: existingOrder.id },
+        data: {
+          paymentProof: body.paymentProofUrl || existingOrder.paymentProofUrl,
+          status: updateData.paymentStatus || 'WAITING_VERIFICATION',
+        },
+      }),
+    ]);
 
     // ================= LOGIKA TRIGGER NOTIFIKASI ADMIN =================
     const customerName = updatedOrder.user?.name || updatedOrder.shippingRecipient || "Pelanggan";
@@ -213,8 +217,8 @@ const [updatedOrder] = await prisma.$transaction([
       });
     }
 
-    // 🔥 KONDISI C (BARU): User Unggah Bukti Transfer Baru
-    if (body.paymentProofUrl && !existingOrder.paymentProofUrl) {
+    // KONDISI C: User Unggah Bukti Transfer Baru (Atau mengganti bukti lama)
+    if (body.paymentProofUrl && (body.paymentProofUrl !== existingOrder.paymentProofUrl)) {
       console.log(`📩 Trigger Notifikasi Bukti Pembayaran Masuk untuk Order #${updatedOrder.orderNumber}`);
       await prisma.notification.create({
         data: {
@@ -222,7 +226,7 @@ const [updatedOrder] = await prisma.$transaction([
           title: "Bukti Transfer Baru! 📥",
           message: `${customerName} telah mengunggah bukti pembayaran untuk pesanan #${updatedOrder.orderNumber}. Mohon segera verifikasi.`,
           type: "PAYMENT",
-          link: `/admin/payments`, // Langsung diarahkan ke modul manajemen pembayaran admin yang baru saja Anda perbaiki
+          link: `/admin/payments`, 
         },
       });
     }
@@ -245,7 +249,7 @@ const [updatedOrder] = await prisma.$transaction([
     revalidatePath("/customer/orders");
     revalidatePath(`/customer/orders/${id}`);
     revalidatePath("/admin/orders");
-    revalidatePath("/admin/payments"); // Pastikan data pembayaran terbaru langsung bersih dari cache admin
+    revalidatePath("/admin/payments"); 
 
     return NextResponse.json(formatOrderResponse(updatedOrder));
   } catch (error) {
@@ -265,11 +269,22 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    // DELETE BERDASARKAN orderNumber
-    await prisma.order.delete({
+    // Perbaikan query pencarian fleksibel agar method DELETE tidak mengalami crash saat menerima ID sistem database
+    const orderToDelete = await prisma.order.findFirst({
       where: {
-        orderNumber: id,
-      },
+        OR: [
+          { id: id },
+          { orderNumber: id }
+        ]
+      }
+    });
+
+    if (!orderToDelete) {
+      return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
+    }
+
+    await prisma.order.delete({
+      where: { id: orderToDelete.id },
     });
 
     revalidatePath("/customer/orders");
@@ -279,7 +294,7 @@ export async function DELETE(
       message: "Order berhasil dihapus",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error pada DELETE Order:", error);
     return NextResponse.json(
       { error: "Gagal menghapus order" },
       { status: 500 }

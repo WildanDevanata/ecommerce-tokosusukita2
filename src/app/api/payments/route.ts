@@ -1,11 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+// Definisikan tipe params asinkronus sesuai standar Next.js 15+
+type RouteParams = {
+  params: Promise<{ id: string }>;
+};
+
 // Handler untuk UPDATE bukti pembayaran
-// Di dalam file API PATCH pembayaran Anda
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: Request, 
+  { params }: RouteParams
+) {
   try {
-    const { id } = params;
+    // Await params terlebih dahulu sebelum mengambil id
+    const { id } = await params;
     const body = await request.json();
     const { paymentProofUrl, paymentMethod } = body;
 
@@ -22,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       prisma.payment.updateMany({
         where: { orderId: id },
         data: {
-          paymentProof: paymentProofUrl, // Mengisi kolom yang tadinya null di image_d4c924.png
+          paymentProof: paymentProofUrl,
           method: paymentMethod,
           status: 'WAITING_VERIFICATION',
         },
@@ -36,20 +44,24 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-// Handler untuk GET detail satu order (Jika dibutuhkan di halaman detail)
+// Handler untuk GET detail satu order
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
+    // Await params terlebih dahulu sebelum mengambil id
+    const { id } = await params;
+
     const order = await prisma.order.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
     
     if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
     
     return NextResponse.json(order);
   } catch (error) {
+    console.error("GET Error:", error);
     return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
 }

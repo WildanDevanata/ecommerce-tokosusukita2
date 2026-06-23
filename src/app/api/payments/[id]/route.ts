@@ -5,10 +5,11 @@ const prisma = new PrismaClient();
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Mengubah params menjadi Promise
 ) {
   try {
-    const { id } = params;
+    // Await params terlebih dahulu sebelum mengambil properti id
+    const { id } = await params;
     const body = await request.json();
     
     // Destruktur data dari body request

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import DashboardCharts from "@/components/admin/dashboard-charts";
+export const dynamic = 'force-dynamic';
 
 // Helper status UI
 const getStatusStyles = (status: string) => {

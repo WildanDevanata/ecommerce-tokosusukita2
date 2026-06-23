@@ -1,27 +1,29 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// Definisikan tipe params asinkronus untuk folder [id]
+// Definisikan tipe params asinkronus sesuai standar Next.js 15+
 type RouteParams = {
   params: Promise<{ id: string }>;
 };
 
-// Handler untuk UPDATE bukti pembayaran berdasarkan ID
+// Handler untuk UPDATE bukti pembayaran
 export async function PATCH(
   request: Request, 
   { params }: RouteParams
 ) {
   try {
-    const { id } = await params; // Await params terlebih dahulu
+    // Await params terlebih dahulu sebelum mengambil id
+    const { id } = await params;
     const body = await request.json();
     const { paymentProofUrl, paymentMethod } = body;
 
+    // Menggunakan transaksi untuk update dua tabel sekaligus
     await prisma.$transaction([
       prisma.order.update({
         where: { id },
         data: {
           paymentProofUrl: paymentProofUrl,
-          paymentMethod: paymentMethod,
+          // paymentMethod dihapus dari sini karena tidak ada di skema model Order
           paymentStatus: 'WAITING_VERIFICATION',
         },
       }),
@@ -29,7 +31,7 @@ export async function PATCH(
         where: { orderId: id },
         data: {
           paymentProof: paymentProofUrl,
-          method: paymentMethod,
+          method: paymentMethod, // Tetap disimpan di model Payment
           status: 'WAITING_VERIFICATION',
         },
       }),
@@ -42,13 +44,13 @@ export async function PATCH(
   }
 }
 
-// Handler untuk GET detail satu order berdasarkan ID
+// Handler untuk GET detail satu order
 export async function GET(
   request: Request,
   { params }: RouteParams
 ) {
   try {
-    const { id } = await params; // Await params terlebih dahulu
+    const { id } = await params;
 
     const order = await prisma.order.findUnique({
       where: { id },

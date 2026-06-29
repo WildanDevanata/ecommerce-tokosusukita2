@@ -278,7 +278,7 @@ export default function OrderDetailPage() {
     <>
      {/* 💡 PERBAIKAN: Ubah URL secara dinamis berdasarkan status mode Production Anda */}
 <Script 
-  src={process.env.MIDTRANS_IS_PRODUCTION === 'true'
+  src={process.env.MIDTRANS_IS_PRODUCTION === 'false'
     ? "https://app.midtrans.com/snap/snap.js"
     : "https://app.sandbox.midtrans.com/snap/snap.js"
   } 

@@ -82,7 +82,7 @@ const formatOrderResponse = (order: any) => ({
   },
 });
 
-// ================= GET =================
+// ================= GET (VERSI YANG SUDAH DIPERBAIKI) =================
 export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -90,17 +90,14 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    // 🛡️ PROTEKSI API: Jika request datang membawa orderNumber (diawali 'ORD-'), tolak request!
-    if (id.startsWith('ORD-')) {
-      return NextResponse.json(
-        { error: "Akses Ditolak: Gunakan ID unik sistem database, bukan Nomor Order." },
-        { status: 400 }
-      );
-    }
-    
-    // Pencarian ketat hanya berdasarkan ID asli database
-    const order = await prisma.order.findUnique({
-      where: { id: id },
+    // Menghapus proteksi pemblokiran 'ORD-' dan menggantinya dengan pencarian fleksibel
+    const order = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { orderNumber: id } // Jika yang masuk adalah 'ORD-xxx', dia akan dicocokkan di sini
+        ]
+      },
       include: {
         user: true,
         items: { include: { product: true, review: true } },

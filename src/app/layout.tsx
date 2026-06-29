@@ -8,9 +8,18 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+// ================= PERBAIKAN METADATA & ICONS =================
 export const metadata: Metadata = {
-  title: "SusuKita - Toko Susu & Perlengkapan Bayi",
+  title: "SusuKita2- Toko Susu & Perlengkapan Bayi",
   description: "Solusi kebutuhan si kecil",
+  icons: {
+    icon: [
+      {
+        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🍼</text></svg>",
+        type: "image/svg+xml",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({

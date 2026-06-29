@@ -82,7 +82,7 @@ export default function Footer() {
         {/* Bottom Footer tetap sama */}
         <div className="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
           <p className="text-gray-400 text-sm">
-            © {currentYear} BabyStore. Hak Cipta Dilindungi.
+            © {currentYear} Toko Susu kita 2. Hak Cipta Dilindungi.
           </p>
           <div className="flex items-center gap-6">
             <span className="text-xs text-gray-400 uppercase tracking-widest font-medium italic">Metode Pembayaran</span>

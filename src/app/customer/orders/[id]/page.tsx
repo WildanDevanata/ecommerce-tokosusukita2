@@ -276,10 +276,14 @@ export default function OrderDetailPage() {
 
   return (
     <>
-      <Script 
-        src="https://app.sandbox.midtrans.com/snap/snap.js" 
-        data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
-      />
+     {/* 💡 PERBAIKAN: Ubah URL secara dinamis berdasarkan status mode Production Anda */}
+<Script 
+  src={process.env.MIDTRANS_IS_PRODUCTION === 'true'
+    ? "https://app.midtrans.com/snap/snap.js"
+    : "https://app.sandbox.midtrans.com/snap/snap.js"
+  } 
+  data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+/>
       <Navbar />
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="flex items-center gap-3 mb-6">

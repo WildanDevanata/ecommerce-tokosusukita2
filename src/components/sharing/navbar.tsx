@@ -40,6 +40,11 @@ export default function Navbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Close mobile menu when pathname changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   // ================= CLOSE DROPDOWN =================
 
   useEffect(() => {
@@ -136,11 +141,11 @@ export default function Navbar() {
           {/* RIGHT ACTION */}
           <div className="flex items-center gap-2">
             
-            {/* CUSTOMER ICON */}
+            {/* WISHLIST & CART (Tampil di Desktop & Mobile agar User Mobile Mudah Mengakses) */}
             {isCustomer && (
-              <div className="hidden sm:flex items-center gap-1 mr-2">
+              <div className="flex items-center gap-1 mr-1 sm:mr-2">
                 
-                {/* 🛠️ WISHLIST WITH COUNTER INDICATOR */}
+                {/* WISHLIST WITH COUNTER INDICATOR */}
                 <Link
                   href="/customer/wishlist"
                   className={`p-2 rounded-xl transition-colors relative ${
@@ -178,9 +183,9 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* USER MENU */}
+            {/* USER MENU (Hanya Desktop untuk Info Detail, Mobile Menggunakan Menu Terpisah di Bawah) */}
             {isLoggedIn ? (
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative hidden md:block" ref={dropdownRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-2xl hover:bg-gray-50 transition-all"
@@ -188,7 +193,7 @@ export default function Navbar() {
                   <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-all">
                     <User className="w-5 h-5" />
                   </div>
-                  <div className="hidden sm:block text-left">
+                  <div className="text-left">
                     <p className="text-sm font-semibold text-gray-700 leading-tight">
                       {currentUser?.name}
                     </p>
@@ -234,7 +239,7 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              <div className="hidden sm:flex items-center gap-3">
+              <div className="hidden md:flex items-center gap-3">
                 <Link
                   href="/login"
                   className="text-sm font-semibold text-blue-600 hover:text-blue-700 px-3"
@@ -250,10 +255,11 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* MOBILE BUTTON */}
+            {/* MOBILE HAMBURGER BUTTON */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 text-gray-600"
+              className="md:hidden p-2 text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
+              aria-label="Toggle Menu"
             >
               {isMobileMenuOpen ? (
                 <X className="w-6 h-6" />
@@ -264,6 +270,115 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* ================= MOBILE MENU PANEL ================= */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-white border-t border-gray-100 px-4 pt-2 pb-6 space-y-2 shadow-inner animate-in slide-in-from-top duration-200">
+          
+          {/* USER INFO ON MOBILE PANEL (Jika Login) */}
+          {isLoggedIn && (
+            <div className="flex items-center gap-3 px-3 py-3 bg-gray-50 rounded-xl mb-4">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-800">{currentUser?.name}</p>
+                <p className="text-xs text-gray-400 lowercase">{currentUser?.email}</p>
+              </div>
+            </div>
+          )}
+
+          {/* REGULAR NAV LINKS */}
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={`block text-base font-medium px-4 py-3 rounded-xl transition-all ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                }`}
+              >
+                {link.name}
+              </Link>
+            );
+          })}
+
+          {/* CUSTOMER PROFILE & ORDERS ON MOBILE */}
+          {isCustomer && (
+            <>
+              <Link
+                href="/customer/orders"
+                className={`flex items-center gap-3 text-base font-medium px-4 py-3 rounded-xl transition-all ${
+                  pathname.startsWith('/customer/orders')
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                }`}
+              >
+                <Package className="w-5 h-5" />
+                Pesanan Saya
+              </Link>
+              <Link
+                href="/customer/profile"
+                className={`flex items-center gap-3 text-base font-medium px-4 py-3 rounded-xl transition-all ${
+                  pathname === '/customer/profile'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                }`}
+              >
+                <User className="w-5 h-5" />
+                Profil Saya
+              </Link>
+            </>
+          )}
+
+          {/* ADMIN PROFILE ON MOBILE */}
+          {isAdmin && (
+            <Link
+              href="/admin/profile"
+              className={`flex items-center gap-3 text-base font-medium px-4 py-3 rounded-xl transition-all ${
+                pathname === '/admin/profile'
+                  ? 'bg-blue-50 text-blue-600 font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              Panel Admin
+            </Link>
+          )}
+
+          {/* AUTH BUTTONS FOR MOBILE (Jika belum login) */}
+          {!isLoggedIn ? (
+            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+              <Link
+                href="/login"
+                className="flex items-center justify-center text-sm font-bold text-blue-600 border border-blue-100 py-3 rounded-xl hover:bg-blue-50 transition-all"
+              >
+                Masuk
+              </Link>
+              <Link
+                href="/register"
+                className="flex items-center justify-center text-sm font-bold text-white bg-blue-600 py-3 rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+              >
+                Daftar
+              </Link>
+            </div>
+          ) : (
+            /* LOGOUT BUTTON FOR MOBILE */
+            <div className="pt-4 border-t border-gray-100">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-base font-medium text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                Keluar Akun
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 }

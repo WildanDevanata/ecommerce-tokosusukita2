@@ -125,17 +125,14 @@ export async function PATCH(
     const { id } = await context.params;
     const body = await req.json();
 
-    // 🛡️ PROTEKSI API: Tolak modifikasi via rute jika parameter menggunakan orderNumber
-    if (id.startsWith('ORD-')) {
-      return NextResponse.json(
-        { error: "Akses Ditolak: Modifikasi data wajib menggunakan ID unik pesanan." },
-        { status: 400 }
-      );
-    }
-
-    // Ambil data pesanan lama berdasarkan ID tunggal
-    const existingOrder = await prisma.order.findUnique({
-      where: { id: id },
+    // 🔄 PERBAIKAN PENCARIAN: Mencari secara fleksibel berdasarkan ID unik atau Order Number
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        OR: [
+          { id: id },
+          { orderNumber: id } // Memungkinkan pembaruan alur menggunakan format 'ORD-xxx'
+        ]
+      },
     });
 
     if (!existingOrder) {
@@ -178,10 +175,10 @@ export async function PATCH(
       updateData.paymentStatus = 'WAITING_VERIFICATION';
     }
 
-    // EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE
+    // EKSEKUSI UPDATE DATA MENGGUNAKAN ID ASLI DATABASE (Aman dari duplikasi)
     const [updatedOrder] = await prisma.$transaction([
       prisma.order.update({
-        where: { id: existingOrder.id },
+        where: { id: existingOrder.id }, // Selalu eksekusi menggunakan ID unik database asli
         data: updateData,
         include: {
           user: true,

@@ -506,531 +506,316 @@ export default function ProductsClient() {
       </div>
 
       {/* MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+{showModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
 
-          <div className="w-full max-w-3xl overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
+    <div className="w-full max-w-3xl overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in fade-in zoom-in duration-200">
 
-            {/* HEADER */}
-            <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">
+            {editProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Lengkapi informasi produk dengan benar
+          </p>
+        </div>
 
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {editProduct
-                    ? 'Edit Produk'
-                    : 'Tambah Produk Baru'}
-                </h2>
+        <button
+          onClick={() => setShowModal(false)}
+          className="rounded-full p-2 transition hover:bg-gray-100"
+        >
+          <X className="h-5 w-5 text-gray-500" />
+        </button>
+      </div>
 
-                <p className="mt-1 text-sm text-gray-500">
-                  Lengkapi informasi
-                  produk dengan benar
-                </p>
-              </div>
+      {/* CONTENT */}
+      <div className="max-h-[85vh] overflow-y-auto px-8 py-7">
+        <div className="space-y-6">
 
-              <button
-                onClick={() =>
-                  setShowModal(false)
+          {/* NAMA */}
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Nama Produk *
+            </label>
+            <input
+              type="text"
+              value={form.name || ''}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  name: e.target.value,
+                }))
+              }
+              placeholder="Nama produk..."
+              className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+
+          {/* GRID */}
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+            {/* KATEGORI */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Kategori *
+              </label>
+              <select
+                value={(form as any).categoryId || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    categoryId: e.target.value,
+                  }))
                 }
-                className="rounded-full p-2 transition hover:bg-gray-100"
+                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
               >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
+                <option value="">Pilih kategori</option>
+                {categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* CONTENT */}
-            <div className="max-h-[85vh] overflow-y-auto px-8 py-7">
-
-              <div className="space-y-6">
-
-                {/* NAMA */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
-                    Nama Produk *
-                  </label>
-
+            {/* UPLOAD IMAGE */}
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Gambar Produk
+              </label>
+              <div className="space-y-4">
+                <label className="flex h-36 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50 transition hover:border-blue-400 hover:bg-blue-50">
                   <input
-                    type="text"
-                    value={
-                      form.name || ''
-                    }
-                    onChange={(e) =>
-                      setForm(
-                        (prev) => ({
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        setUploadingImage(true);
+                        const data = new FormData();
+                        data.append('file', file);
+                        data.append('upload_preset', PRESET_NAME);
+
+                        const res = await fetch(
+                          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+                          { method: 'POST', body: data }
+                        );
+
+                        const result = await res.json();
+                        if (!result.secure_url) throw new Error('Upload gagal');
+
+                        setForm((prev) => ({
                           ...prev,
-                          name:
-                            e.target
-                              .value,
-                        })
-                      )
-                    }
-                    placeholder="Nama produk..."
-                    className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                          image: result.secure_url,
+                        }));
+                      } catch (error) {
+                        console.error(error);
+                        alert('Gagal upload gambar');
+                      } finally {
+                        setUploadingImage(false);
+                      }
+                    }}
                   />
-                </div>
 
-                {/* GRID */}
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  {uploadingImage ? (
+                    <>
+                      <p className="text-sm font-semibold text-blue-600">Mengupload...</p>
+                      <p className="mt-1 text-xs text-gray-400">Tunggu sebentar</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 text-4xl">📷</div>
+                      <p className="text-sm font-semibold text-gray-700">Klik untuk upload gambar</p>
+                      <p className="mt-1 text-xs text-gray-400">PNG, JPG, WEBP</p>
+                    </>
+                  )}
+                </label>
 
-                  {/* KATEGORI */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Kategori *
-                    </label>
-
-                    <select
-                      value={
-                        (form as any)
-                          .categoryId ||
-                        ''
+                {(form as any).image && (
+                  <div className="relative w-fit">
+                    <img
+                      src={(form as any).image}
+                      alt="Preview"
+                      className="h-32 w-32 rounded-2xl border border-gray-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          image: '',
+                        }))
                       }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            categoryId:
-                              e.target
-                                .value,
-                          })
-                        )
-                      }
-                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                      className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg"
                     >
-                      <option value="">
-                        Pilih kategori
-                      </option>
-
-                      {categories.map(
-                        (
-                          cat: any
-                        ) => (
-                          <option
-                            key={
-                              cat.id
-                            }
-                            value={
-                              cat.id
-                            }
-                          >
-                            {
-                              cat.icon
-                            }{' '}
-                            {
-                              cat.name
-                            }
-                          </option>
-                        )
-                      )}
-                    </select>
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-
-                  {/* UPLOAD IMAGE */}
-                  <div className="md:col-span-2">
-
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Gambar Produk
-                    </label>
-
-                    <div className="space-y-4">
-
-                      <label className="flex h-36 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50 transition hover:border-blue-400 hover:bg-blue-50">
-
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async (
-                            e
-                          ) => {
-                            const file =
-                              e.target
-                                .files?.[0];
-
-                            if (!file)
-                              return;
-
-                            try {
-                              setUploadingImage(
-                                true
-                              );
-
-                              const data =
-                                new FormData();
-
-                              data.append(
-                                'file',
-                                file
-                              );
-
-                              data.append(
-                                'upload_preset',
-                                PRESET_NAME
-                              );
-
-                              const res =
-                                await fetch(
-                                  `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-                                  {
-                                    method:
-                                      'POST',
-                                    body: data,
-                                  }
-                                );
-
-                              const result =
-                                await res.json();
-
-                              if (
-                                !result.secure_url
-                              ) {
-                                throw new Error(
-                                  'Upload gagal'
-                                );
-                              }
-
-                              setForm(
-                                (
-                                  prev
-                                ) => ({
-                                  ...prev,
-                                  image:
-                                    result.secure_url,
-                                })
-                              );
-                            } catch (error) {
-                              console.error(
-                                error
-                              );
-
-                              alert(
-                                'Gagal upload gambar'
-                              );
-                            } finally {
-                              setUploadingImage(
-                                false
-                              );
-                            }
-                          }}
-                        />
-
-                        {uploadingImage ? (
-                          <>
-                            <p className="text-sm font-semibold text-blue-600">
-                              Mengupload...
-                            </p>
-
-                            <p className="mt-1 text-xs text-gray-400">
-                              Tunggu
-                              sebentar
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="mb-2 text-4xl">
-                              📷
-                            </div>
-
-                            <p className="text-sm font-semibold text-gray-700">
-                              Klik untuk
-                              upload
-                              gambar
-                            </p>
-
-                            <p className="mt-1 text-xs text-gray-400">
-                              PNG, JPG,
-                              WEBP
-                            </p>
-                          </>
-                        )}
-                      </label>
-
-                      {(form as any)
-                        .image && (
-                        <div className="relative w-fit">
-
-                          <img
-                            src={
-                              (
-                                form as any
-                              ).image
-                            }
-                            alt="Preview"
-                            className="h-32 w-32 rounded-2xl border border-gray-200 object-cover"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm(
-                                (
-                                  prev
-                                ) => ({
-                                  ...prev,
-                                  image:
-                                    '',
-                                })
-                              )
-                            }
-                            className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* HARGA */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Harga Setelah
-                      Diskon (Rp)
-                    </label>
-
-                    <input
-                      type="number"
-                      value={
-                        form.price ||
-                        ''
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            price:
-                              Number(
-                                e.target
-                                  .value
-                              ),
-                          })
-                        )
-                      }
-                      placeholder="85000"
-                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                    />
-                  </div>
-
-                  {/* HARGA ASLI */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Harga Asli (Rp)
-                    </label>
-
-                    <input
-                      type="number"
-                      value={
-                        (form as any)
-                          .originalPrice ||
-                        ''
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            originalPrice:
-                              Number(
-                                e.target
-                                  .value
-                              ),
-                          })
-                        )
-                      }
-                      placeholder="100000"
-                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                    />
-                  </div>
-
-                  {/* STOK */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Stok
-                    </label>
-
-                    <input
-                      type="number"
-                      value={
-                        form.stock ||
-                        ''
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            stock:
-                              Number(
-                                e.target
-                                  .value
-                              ),
-                          })
-                        )
-                      }
-                      placeholder="50"
-                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                    />
-                  </div>
-
-                  {/* BERAT */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      Berat (gram)
-                    </label>
-
-                    <input
-                      type="number"
-                      value={
-                        (form as any)
-                          .weight || ''
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            weight:
-                              Number(
-                                e.target
-                                  .value
-                              ),
-                          })
-                        )
-                      }
-                      placeholder="400"
-                      className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                    />
-                  </div>
-                </div>
-
-                {/* DESKRIPSI */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
-                    Deskripsi
-                  </label>
-
-                  <textarea
-                    rows={5}
-                    value={
-                      (form as any)
-                        .description ||
-                      ''
-                    }
-                    onChange={(e) =>
-                      setForm(
-                        (prev) => ({
-                          ...prev,
-                          description:
-                            e.target
-                              .value,
-                        })
-                      )
-                    }
-                    placeholder="Deskripsi produk..."
-                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none transition-all resize-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                  />
-                </div>
-
-                {/* CHECKBOX */}
-                <div className="flex flex-wrap gap-6 pt-1">
-
-                  <label className="flex cursor-pointer items-center gap-3">
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        form.isActive ??
-                        true
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            isActive:
-                              e.target
-                                .checked,
-                          })
-                        )
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-
-                    <span className="text-sm font-medium text-gray-700">
-                      Aktif
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-center gap-3">
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        (form as any)
-                          .isFeatured ||
-                        false
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            isFeatured:
-                              e.target
-                                .checked,
-                          })
-                        )
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-
-                    <span className="text-sm font-medium text-gray-700">
-                      Featured
-                    </span>
-                  </label>
-                </div>
-
-                {/* BUTTON */}
-                <div className="grid grid-cols-2 gap-4 pt-6">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowModal(false)
-                    }
-                    className="h-14 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-                  >
-                    Batal
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={
-                      isSubmitting ||
-                      uploadingImage
-                    }
-                    className="h-14 rounded-2xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
-                  >
-                    {isSubmitting
-                      ? 'Menyimpan...'
-                      : editProduct
-                      ? 'Update Produk'
-                      : 'Simpan Produk'}
-                  </button>
-                </div>
+                )}
               </div>
+            </div>
+
+            {/* HARGA DISKON */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Harga Setelah Diskon (Rp)
+              </label>
+              <input
+                type="number"
+                value={form.price || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    price: e.target.value === '' ? 0 : Number(e.target.value),
+                  }))
+                }
+                onWheel={(e) => (e.target as HTMLInputElement).blur()} // 🔒 Mencegah scroll merubah angka
+                placeholder="85000"
+                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+
+            {/* HARGA ASLI */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Harga Asli (Rp)
+              </label>
+              <input
+                type="number"
+                value={(form as any).originalPrice || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    originalPrice: e.target.value === '' ? 0 : Number(e.target.value),
+                  }))
+                }
+                onWheel={(e) => (e.target as HTMLInputElement).blur()} // 🔒 Mencegah scroll merubah angka
+                placeholder="100000"
+                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+
+            {/* STOK */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Stok
+              </label>
+              <input
+                type="number"
+                value={form.stock || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    stock: e.target.value === '' ? 0 : Number(e.target.value),
+                  }))
+                }
+                onWheel={(e) => (e.target as HTMLInputElement).blur()} // 🔒 Mencegah scroll merubah angka
+                placeholder="50"
+                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+
+            {/* BERAT */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Berat (gram)
+              </label>
+              <input
+                type="number"
+                value={(form as any).weight || ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    weight: e.target.value === '' ? 0 : Number(e.target.value),
+                  }))
+                }
+                onWheel={(e) => (e.target as HTMLInputElement).blur()} // 🔒 Mencegah scroll merubah angka
+                placeholder="400"
+                className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
             </div>
           </div>
+
+          {/* DESKRIPSI */}
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Deskripsi
+            </label>
+            <textarea
+              rows={5}
+              value={(form as any).description || ''}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              placeholder="Deskripsi produk..."
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none transition-all resize-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+
+          {/* CHECKBOX */}
+          <div className="flex flex-wrap gap-6 pt-1">
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.isActive ?? true}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    isActive: e.target.checked,
+                  }))
+                }
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Aktif</span>
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={(form as any).isFeatured || false}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    isFeatured: e.target.checked,
+                  }))
+                }
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Featured</span>
+            </label>
+          </div>
+
+          {/* BUTTON */}
+          <div className="grid grid-cols-2 gap-4 pt-6">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="h-14 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+            >
+              Batal
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSubmitting || uploadingImage}
+              className="h-14 rounded-2xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
+            >
+              {isSubmitting ? 'Menyimpan...' : editProduct ? 'Update Produk' : 'Simpan Produk'}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

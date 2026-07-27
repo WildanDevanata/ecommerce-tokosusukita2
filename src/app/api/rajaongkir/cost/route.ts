@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-
 import { calculateCost } from "@/lib/rajaongkir";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-// Ensure IDs are strings containing numbers, not names
-    const originId = "123"; // REPLACE with your actual store city ID (as a string)
-    const destinationId = body.destination; // Expecting the ID from frontend
+
+    const originId = "40102"; // Toko di Magetan
+
+    if (!body.destination) {
+      return NextResponse.json(
+        { success: false, message: "Destination is required" },
+        { status: 400 }
+      );
+    }
 
     const results = await calculateCost({
       origin: originId,
-      destination: destinationId, 
+      destination: String(body.destination),
       courier: body.courier,
-      weight: body.weight,
+      weight: Number(body.weight),
     });
 
     return NextResponse.json({

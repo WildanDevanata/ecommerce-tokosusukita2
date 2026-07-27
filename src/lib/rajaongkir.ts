@@ -11,6 +11,22 @@ const BASE_URL =
 
 const API_KEY = process.env.RAJAONGKIR_API_KEY!;
 
+
+// ======================================================
+// TYPE DESTINATION
+// ======================================================
+
+export type Destination = {
+  id: number;
+  label: string;
+  province_name: string;
+  city_name: string;
+  district_name: string;
+  subdistrict_name: string;
+  zip_code: string;
+};
+
+
 // ======================================================
 // FETCH HELPER
 // ======================================================
@@ -20,6 +36,7 @@ async function fetchWithTimeout(
   options: RequestInit = {},
   timeoutMs = 30000
 ): Promise<Response> {
+
   console.log("FETCH URL:", url);
 
   const controller = new AbortController();
@@ -28,26 +45,41 @@ async function fetchWithTimeout(
     controller.abort();
   }, timeoutMs);
 
+
   try {
-    const response = await fetch(url, {
+
+    return await fetch(url, {
       ...options,
       signal: controller.signal,
       cache: "no-store",
     });
 
-    return response;
+
   } catch (error) {
+
     console.error("FETCH ERROR:", error);
 
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("Request timeout RajaOngkir");
+
+    if (
+      error instanceof Error &&
+      error.name === "AbortError"
+    ) {
+      throw new Error(
+        "Request timeout RajaOngkir"
+      );
     }
 
+
     throw error;
+
+
   } finally {
+
     clearTimeout(timeout);
+
   }
 }
+
 
 // ======================================================
 // HEADERS
@@ -58,11 +90,73 @@ const headers = {
   accept: "application/json",
 };
 
+
+
+// ======================================================
+// SEARCH DOMESTIC DESTINATION
+// ======================================================
+
+export async function searchDestination(
+  keyword: string
+): Promise<Destination[]> {
+
+
+  if (!keyword) {
+    return [];
+  }
+
+
+  const url =
+    `${BASE_URL}/destination/domestic-destination` +
+    `?search=${encodeURIComponent(keyword)}` +
+    `&limit=10&offset=0`;
+
+
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+
+  if (!response.ok) {
+
+    const text = await response.text();
+
+    console.error(
+      "DESTINATION ERROR:",
+      text
+    );
+
+    throw new Error(
+      `Destination Error ${response.status}`
+    );
+  }
+
+
+  const json = await response.json();
+
+
+  console.log(
+    "DESTINATION RESPONSE:",
+    json
+  );
+
+
+  return json.data || [];
+
+}
+
+
+
 // ======================================================
 // GET PROVINCES
 // ======================================================
 
 export async function getProvinces(): Promise<Province[]> {
+
   const response = await fetchWithTimeout(
     `${BASE_URL}/destination/province`,
     {
@@ -71,22 +165,24 @@ export async function getProvinces(): Promise<Province[]> {
     }
   );
 
-  console.log("STATUS:", response.status);
 
   if (!response.ok) {
-    const text = await response.text();
 
-    console.log("ERROR BODY:", text);
+    throw new Error(
+      `Province Error ${response.status}`
+    );
 
-    throw new Error(`Province Error ${response.status}`);
   }
+
 
   const json = await response.json();
 
-  console.log("PROVINCE RESPONSE:", json);
 
   return json.data || [];
+
 }
+
+
 
 // ======================================================
 // GET CITIES
@@ -95,6 +191,8 @@ export async function getProvinces(): Promise<Province[]> {
 export async function getCities(
   provinceId: string
 ): Promise<City[]> {
+
+
   const response = await fetchWithTimeout(
     `${BASE_URL}/destination/city/${provinceId}`,
     {
@@ -103,61 +201,134 @@ export async function getCities(
     }
   );
 
+
   if (!response.ok) {
-    throw new Error(`City Error ${response.status}`);
+
+    throw new Error(
+      `City Error ${response.status}`
+    );
+
   }
+
 
   const json = await response.json();
 
+
   return json.data || [];
+
 }
 
+
+
 // ======================================================
-// CALCULATE COST
+// CALCULATE DOMESTIC COST
 // ======================================================
 
-export async function calculateCost(data: CostRequest): Promise<CourierResult[]> {
-  // Validate that strings are actual numbers
-  if (!data.destination || data.destination === "undefined") {
-    throw new Error("Invalid destination city ID provided.");
+export async function calculateCost(
+  data: CostRequest
+): Promise<CourierResult[]> {
+
+
+  if (
+    !data.origin ||
+    !data.destination
+  ) {
+
+    throw new Error(
+      "Origin dan destination wajib diisi"
+    );
+
   }
+
+
   const url =
-    "https://rajaongkir.komerce.id/api/v1/calculate/domestic-cost";
+    `${BASE_URL}/calculate/domestic-cost`;
 
-  console.log("CALCULATE:", data);
 
-  // WAJIB x-www-form-urlencoded
-  const body = new URLSearchParams();
 
-  body.append("origin", data.origin);
-  body.append("destination", data.destination);
-  body.append("weight", data.weight.toString());
-  body.append("courier", data.courier);
+  console.log(
+    "CALCULATE DATA:",
+    data
+  );
 
-  console.log("BODY:", body.toString());
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      key: API_KEY,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-    cache: "no-store",
-  });
 
-  const text = await response.text();
+  const body =
+    new URLSearchParams();
 
-  console.log("STATUS:", response.status);
-  console.log("RESPONSE:", text);
 
-  const json = JSON.parse(text);
+  body.append(
+    "origin",
+    String(data.origin)
+  );
+
+
+  body.append(
+    "destination",
+    String(data.destination)
+  );
+
+
+  body.append(
+    "weight",
+    String(data.weight)
+  );
+
+
+  body.append(
+    "courier",
+    data.courier
+  );
+
+
+
+  const response =
+    await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+
+        headers: {
+          key: API_KEY,
+          "Content-Type":
+            "application/x-www-form-urlencoded",
+        },
+
+        body:
+          body.toString(),
+      }
+    );
+
+
+
+  const text =
+    await response.text();
+
+
+
+  console.log(
+    "COST RESPONSE:",
+    text
+  );
+
+
+
+  const json =
+    JSON.parse(text);
+
+
 
   if (!response.ok) {
+
     throw new Error(
-      json?.meta?.message || `Cost Error ${response.status}`
+      json?.meta?.message ||
+      `Cost Error ${response.status}`
     );
+
   }
 
+
+
   return json.data || [];
+
 }

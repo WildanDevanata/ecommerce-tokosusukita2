@@ -25,7 +25,6 @@ import type {
   SelectedShipping,
 } from '@/lib/types';
 
-import citiesData from '@/lib/cities.json';
 
 // ================= HELPERS =================
 
@@ -114,86 +113,166 @@ export default function CheckoutPage() {
 
   // ================= FETCH ONGKIR =================
 
-  useEffect(() => {
-    async function fetchOngkir() {
-      if (!address?.city || !courier) return;
+useEffect(() => {
+  async function fetchOngkir() {
+    if (
+      !address?.city ||
+      !address?.province ||
+      !courier
+    ) {
+      return;
+    }
 
-      try {
-        setLoadingOngkir(true);
+    try {
+      setLoadingOngkir(true);
 
-        const foundCity = citiesData.find(
-          (city: any) =>
-            city.city_name
-              .toLowerCase()
-              .trim() ===
-            address.city
-              .toLowerCase()
-              .trim()
-        );
 
-        if (!foundCity) {
-          console.error(
-            'Kota tidak ditemukan:',
-            address.city
-          );
-          setOngkirResults([]);
-          return;
-        }
+      // ==============================
+      // AMBIL DESTINATION ID DARI API INTERNAL
+      // ==============================
 
-        const response = await fetch(
-          '/api/rajaongkir/cost',
+      const destinationResponse =
+        await fetch(
+          "/api/rajaongkir/destination",
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type':
-                'application/json',
+              "Content-Type":
+                "application/json",
             },
             body: JSON.stringify({
-              origin:
-                process.env
-                  .NEXT_PUBLIC_SELLER_CITY_ID ||
-                '501',
+              keyword:
+                `${address.city} ${address.province}`,
+            }),
+          }
+        );
+
+
+      const destinationJson =
+        await destinationResponse.json();
+
+
+      if (!destinationResponse.ok) {
+        throw new Error(
+          destinationJson?.message ||
+          "Gagal mencari destination"
+        );
+      }
+
+
+      const destinations =
+        destinationJson.data || [];
+
+
+
+      if (!destinations.length) {
+        console.error(
+          "Alamat tidak ditemukan:",
+          address
+        );
+
+        setOngkirResults([]);
+
+        return;
+      }
+
+
+
+      // ==============================
+      // PILIH DESTINATION PALING SESUAI
+      // ==============================
+
+      const destination =
+        destinations.find(
+          (item: any) =>
+            item.zip_code ===
+            address.postalCode
+        )
+        ||
+        destinations[0];
+
+
+
+      console.log(
+        "DESTINATION RAJAONGKIR:",
+        destination
+      );
+
+
+
+      // ==============================
+      // HITUNG ONGKIR
+      // ==============================
+
+      const response =
+        await fetch(
+          "/api/rajaongkir/cost",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
               destination:
-                foundCity.city_id,
+                destination.id,
+
               courier,
+
               weight: 1000,
             }),
           }
         );
 
-        const result =
-          await response.json();
 
-        if (!response.ok) {
-          throw new Error(
-            result?.message ||
-              'Gagal mengambil ongkir'
-          );
-        }
 
-        if (Array.isArray(result)) {
-          setOngkirResults(result);
-        } else if (
-          result?.data &&
-          Array.isArray(result.data)
-        ) {
-          setOngkirResults(result.data);
-        } else {
-          setOngkirResults([]);
-        }
-      } catch (error) {
-        console.error(
-          'FETCH ONGKIR ERROR:',
-          error
+      const result =
+        await response.json();
+
+
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message ||
+          "Gagal mengambil ongkir"
         );
-        setOngkirResults([]);
-      } finally {
-        setLoadingOngkir(false);
       }
-    }
 
-    fetchOngkir();
-  }, [address?.city, courier]);
+
+
+      setOngkirResults(
+        result.data || []
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "FETCH ONGKIR ERROR:",
+        error
+      );
+
+      setOngkirResults([]);
+
+
+    } finally {
+
+      setLoadingOngkir(false);
+
+    }
+  }
+
+
+  fetchOngkir();
+
+}, [
+  address?.city,
+  address?.province,
+  address?.postalCode,
+  courier
+]);
 
   // ================= LOADING =================
 
